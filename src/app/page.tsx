@@ -80,7 +80,9 @@ export default async function Home() {
         </section>
 
         <section aria-labelledby="knitwear" className="editorial-split">
-          <div className="relative aspect-editorial overflow-hidden bg-mist">
+          {/* A half-width 3:4 tile outgrows the screen on wide viewports;
+              cap it there so image and copy read as one frame. */}
+          <div className="relative aspect-editorial overflow-hidden bg-mist md:aspect-auto md:h-[min(calc(100svh-var(--header-height)),calc(50vw*4/3))]">
             <Image
               src={unsplash("1558769132-cb1aea458c5e")}
               alt="Cable-knit and bouclé sweaters in cream and brown on a rail"
@@ -139,12 +141,17 @@ export default async function Home() {
           </ul>
         </section>
 
-        <section aria-labelledby="more" className="border-t py-section">
+        {/* No top padding: it follows another white band, and two stacked
+            section paddings read as a gap, not a pause. */}
+        <section aria-labelledby="more" className="pb-section">
           <div className="shell">
             <div className="section-bar">
               <h2 id="more" className="text-title">
-                Also New
+                More from the Season
               </h2>
+              <Link href="/new-arrivals" className="link-cta">
+                View all
+              </Link>
             </div>
           </div>
           <ul className="rail mx-auto max-w-page">

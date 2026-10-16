@@ -15,7 +15,9 @@ export function ProductCard({
   const [image] = product.images;
 
   return (
-    <Link href={`/products/${product.slug}`} className="group block">
+    // relative: anchors Price's sr-only spans, which would otherwise escape
+    // a rail's scroll clip and widen the page.
+    <Link href={`/products/${product.slug}`} className="group relative block">
       <div className="media-frame">
         <Image
           src={image.url}
