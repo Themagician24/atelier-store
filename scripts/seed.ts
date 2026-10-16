@@ -152,6 +152,123 @@ const day = 24 * 60 * 60 * 1000;
 
 const productRows: SeedProduct[] = [
   {
+    slug: "cropped-leather-biker",
+    name: "Cropped Leather Biker",
+    categorySlug: "women",
+    priceCents: 219000,
+    compareAtCents: null,
+    madeToOrder: false,
+    sizes: ["XS", "S", "M", "L"],
+    colours: [
+      { name: "Black", stock: [2, 3, 3, 1] },
+    ],
+    stockDetail: null,
+    description:
+      "A shorter, closer-cut take on the biker in smooth lambskin, ending at the waist. Silver-tone hardware, a wide notched collar and zipped cuffs that can be worn open.",
+    details: [
+      "100% lambskin leather",
+      "Viscose twill lining",
+      "Asymmetric front zip",
+      "Zipped cuffs and three zipped pockets",
+      "Cropped to the waist",
+    ],
+    care: "Specialist leather clean only. Hang on a wide hanger away from direct heat.",
+    images: [
+      {
+        url: unsplash("1551028719-00167b16eac5"),
+        alt: "A black leather biker jacket laid on a white sheet",
+      },
+    ],
+  },
+  {
+    slug: "two-button-wool-suit",
+    name: "Two-Button Wool Suit",
+    categorySlug: "men",
+    priceCents: 168000,
+    compareAtCents: null,
+    madeToOrder: true,
+    sizes: ["46", "48", "50", "52", "54"],
+    colours: [
+      { name: "Navy", stock: [0, 0, 0, 0, 0] },
+    ],
+    stockDetail: "Cut to your size in our Biella workshop, ready in four weeks.",
+    description:
+      "A single-breasted two-button suit in a light Super 120s wool, half-canvassed with soft shoulders. The trousers are slim through the leg and finished without a break.",
+    details: [
+      "100% Super 120s wool",
+      "Half-canvas construction",
+      "Two-button jacket with jetted pockets",
+      "Flat-front trousers",
+      "Made to order",
+    ],
+    care: "Dry clean only. Brush after wear and rest on a shaped hanger.",
+    images: [
+      {
+        url: unsplash("1617137968427-85924c800a22"),
+        alt: "A man in a navy suit and white shirt walking past a glass façade",
+      },
+    ],
+  },
+  {
+    slug: "polka-dot-chambray-shirt",
+    name: "Polka-Dot Chambray Shirt",
+    categorySlug: "women",
+    priceCents: 26000,
+    compareAtCents: 32000,
+    madeToOrder: false,
+    sizes: ["XS", "S", "M", "L"],
+    colours: [
+      { name: "Chambray blue", stock: [3, 5, 4, 2] },
+    ],
+    stockDetail: null,
+    description:
+      "A lightweight chambray shirt woven with a scattered white dot, cut straight with three-quarter sleeves that roll and button at the elbow.",
+    details: [
+      "100% cotton chambray",
+      "Point collar",
+      "Mother-of-pearl buttons",
+      "Roll-up sleeve tabs",
+      "Chest pocket",
+    ],
+    care: "Machine wash at 30°C. Iron while damp.",
+    images: [
+      {
+        url: unsplash("1596755094514-f87e34085b2c"),
+        alt: "A blue chambray shirt with small white dots on a wall hook",
+      },
+    ],
+  },
+  {
+    slug: "cotton-poplin-shirt",
+    name: "Cotton Poplin Shirt",
+    categorySlug: "men",
+    priceCents: 19000,
+    compareAtCents: null,
+    madeToOrder: false,
+    sizes: ["S", "M", "L", "XL"],
+    colours: [
+      { name: "White", stock: [4, 6, 6, 3] },
+      { name: "Sky blue", stock: [2, 4, 4, 2] },
+      { name: "Pale pink", stock: [1, 2, 2, 0] },
+    ],
+    stockDetail: null,
+    description:
+      "A crisp two-ply poplin shirt with a semi-spread collar and single-button cuffs. Regular fit, long enough to stay tucked.",
+    details: [
+      "100% two-ply cotton poplin",
+      "Semi-spread collar",
+      "Single-button barrel cuffs",
+      "Split yoke, curved hem",
+    ],
+    care: "Machine wash at 40°C. Iron while damp.",
+    images: [
+      {
+        url: unsplash("1603252109303-2751441dd157"),
+        alt: "White, blue and pink shirts on wooden hangers on a rail",
+      },
+    ],
+  },
+  {
     slug: "leather-biker-jacket",
     name: "Leather Biker Jacket",
     categorySlug: "men",

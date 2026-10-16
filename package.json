@@ -11,10 +11,12 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "auth:role": "tsx scripts/set-role.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "better-auth": "^1.7.10",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.1",
     "react": "19.3.0",

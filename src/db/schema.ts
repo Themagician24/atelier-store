@@ -2,6 +2,7 @@
 // Column names are derived from the keys (`casing: "snake_case"`).
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -15,18 +16,25 @@ import {
 
 // --- Better Auth (core schema: don't rename or drop these columns) ---------
 
-export const user = pgTable("user", {
-  id: text().primaryKey(),
-  name: text().notNull(),
-  email: text().notNull().unique(),
-  emailVerified: boolean().notNull().default(false),
-  image: text(),
-  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    email: text().notNull().unique(),
+    emailVerified: boolean().notNull().default(false),
+    image: text(),
+    // Declared to Better Auth with `input: false`, so no auth endpoint can set
+    // it; scripts/set-role.ts is the only way to grant admin.
+    role: text().notNull().default("customer"),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [check("user_role_check", sql`${t.role} in ('customer', 'admin')`)],
+);
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
@@ -102,6 +110,16 @@ export const verification = pgTable(
   },
   (t) => [index("verification_identifier_idx").on(t.identifier)],
 );
+
+// Rate-limit counters for /api/auth/*. In the database rather than memory,
+// which resets per serverless instance.
+export const rateLimit = pgTable("rate_limit", {
+  id: text().primaryKey(),
+  key: text().notNull().unique(),
+  count: integer().notNull(),
+  // Epoch milliseconds.
+  lastRequest: bigint({ mode: "number" }).notNull(),
+});
 
 // --- Catalogue --------------------------------------------------------------
 

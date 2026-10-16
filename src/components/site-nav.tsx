@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FocusEvent } from "react";
 import {
   AccountIcon,
@@ -36,6 +37,7 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pathname = usePathname();
 
   function schedule(slug: string | null, delay: number) {
     clearTimeout(timer.current);
@@ -140,6 +142,7 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
                   href={section.href}
                   onClick={closeNow}
                   aria-expanded={openSlug === section.slug}
+                  aria-current={pathname === section.href ? "page" : undefined}
                   className={`eyebrow link-quiet flex h-(--header-height) items-center ${
                     openSlug === section.slug ? "decoration-current" : ""
                   }`}
@@ -156,34 +159,33 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
           </ul>
         </nav>
 
-        <div className="flex items-center justify-end gap-1 xl:gap-4">
+        {/* Icons only: the labels live in aria-label and the title tooltip. */}
+        <div className="flex items-center justify-end">
           <button
             type="button"
             onClick={openSearch}
+            aria-label="Search"
             aria-haspopup="dialog"
             aria-keyshortcuts="/ Control+K Meta+K"
-            className="eyebrow link-quiet hidden h-11 items-center gap-2 px-2 lg:flex"
+            title="Search ( / )"
+            className="btn btn-icon hidden lg:inline-flex"
           >
-            <span className="size-5 [&>svg]:size-full">
-              <SearchIcon />
-            </span>
-            <span className="max-xl:sr-only">Search</span>
-            <kbd className="hidden border px-1.5 font-sans text-muted xl:inline">
-              /
-            </kbd>
+            <SearchIcon />
           </button>
-
           <Link
-            href="/sign-in"
-            className="eyebrow link-quiet flex h-11 items-center gap-2 px-2.5"
+            href="/account"
+            aria-label="Account"
+            title="Account"
+            className="btn btn-icon"
           >
-            <span className="size-5 [&>svg]:size-full">
-              <AccountIcon />
-            </span>
-            <span className="max-xl:sr-only">Sign in</span>
+            <AccountIcon />
           </Link>
-
-          <Link href="/bag" aria-label="Bag" className="btn btn-icon -mr-2.5">
+          <Link
+            href="/bag"
+            aria-label="Bag"
+            title="Bag"
+            className="btn btn-icon -mr-2.5"
+          >
             <BagIcon />
           </Link>
         </div>
@@ -412,8 +414,8 @@ function MobileDrawer({
         </nav>
 
         <div className="grid shrink-0 grid-cols-2 gap-2 border-t px-gutter py-4">
-          <Link href="/sign-in" className="btn btn-primary">
-            Sign in
+          <Link href="/account" className="btn btn-primary">
+            Account
           </Link>
           <Link href="/bag" className="btn btn-secondary">
             Bag

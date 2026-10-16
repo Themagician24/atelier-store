@@ -190,6 +190,56 @@ export async function getRelatedProducts(
   return rows.map(mapProduct);
 }
 
+export type Category = {
+  slug: string;
+  name: string;
+  /** Newest first. */
+  products: Product[];
+};
+
+export async function getCategorySlugs(): Promise<string[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("products");
+
+  const rows = await db.select({ slug: categories.slug }).from(categories);
+  return rows.map((row) => row.slug);
+}
+
+/** A category and every piece in it, newest first. */
+export async function getCategory(slug: string): Promise<Category | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("products");
+
+  const row = await db.query.categories.findFirst({
+    where: eq(categories.slug, slug),
+    columns: { slug: true, name: true },
+    with: {
+      products: {
+        orderBy: [desc(products.createdAt)],
+        with: {
+          category: { columns: { slug: true, name: true } },
+          images: {
+            columns: { url: true, alt: true, colour: true },
+            orderBy: [asc(productImages.position)],
+          },
+          variants: {
+            columns: {
+              sku: true,
+              colour: true,
+              size: true,
+              stockQuantity: true,
+            },
+            orderBy: [asc(productVariants.position)],
+          },
+        },
+      },
+    },
+  });
+  return row ? { ...row, products: row.products.map(mapProduct) } : null;
+}
+
 const NAV_SECTION_LIMIT = 8;
 
 /**
