@@ -1,0 +1,490 @@
+@import "tailwindcss";
+
+/*
+ * Atelier design system.
+ * Monochrome, square, photography-first: the product images carry the colour,
+ * the chrome stays black on white. Light-only on purpose — packshots are shot
+ * for a white page.
+ */
+
+/* ---------- Tokens ---------- */
+
+@theme {
+  /* Colour: ink on paper, greys for structure, one red for errors. */
+  --color-ink: #000000;
+  --color-ink-soft: #333333;
+  --color-paper: #ffffff;
+  --color-mist: #f5f5f5; /* image backdrops, disabled fills */
+  --color-line: #dcdcdc; /* hairlines */
+  --color-muted: #6b6b6b; /* secondary text, 5.3:1 on paper */
+  --color-alert: #b3141b;
+  --color-scrim: rgb(0 0 0 / 0.5); /* under paper text set on photography */
+
+  /* Type scale. Small, letter-spaced UI against large serif display. */
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1rem;
+  --text-eyebrow--letter-spacing: 0.1em;
+  --text-eyebrow--font-weight: 500;
+  --text-ui: 0.75rem;
+  --text-ui--line-height: 1.125rem;
+  --text-ui--letter-spacing: 0.02em;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.6;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.6;
+  --text-title: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  --text-title--line-height: 1.2;
+  --text-display: clamp(2.25rem, 1.5rem + 3.5vw, 4.5rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.01em;
+  --text-hero: clamp(3rem, 1.25rem + 7.5vw, 8rem);
+  --text-hero--line-height: 0.95;
+  --text-hero--letter-spacing: -0.015em;
+
+  --tracking-label: 0.1em;
+  --tracking-wordmark: 0.22em;
+
+  /* Containers (max-w-*). Pages are full-bleed; these cap text and forms. */
+  --container-page: 120rem;
+  --container-reading: 38rem;
+  --container-form: 26rem; /* sign-in, address, single-column forms */
+
+  --aspect-product: 4 / 5;
+  --aspect-editorial: 3 / 4; /* half-width campaign tiles */
+  --aspect-hero: 16 / 9;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Fonts come from next/font on <html>, so they must resolve at runtime. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-eb-garamond), ui-serif, Georgia, serif;
+
+  /* px-gutter, py-section, gap-tile… follow the viewport. */
+  --spacing-gutter: var(--gutter);
+  --spacing-section: var(--section);
+  --spacing-tile: var(--tile);
+}
+
+:root {
+  --gutter: 1rem;
+  --section: 4rem;
+  --tile: 0.25rem;
+  --header-height: 3.5rem;
+
+  @variant md {
+    --gutter: 2rem;
+    --section: 6rem;
+    --header-height: 4.5rem;
+  }
+
+  @variant xl {
+    --gutter: 3rem;
+    --section: 8rem;
+  }
+}
+
+/* ---------- Base ---------- */
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--color-ink);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+}
+
+/* ---------- Primitives ---------- */
+
+/* Horizontal frame for any band of content. */
+@utility shell {
+  width: 100%;
+  max-width: var(--container-page);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Small uppercase label: nav, section kickers, product meta. */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-eyebrow);
+  line-height: var(--text-eyebrow--line-height);
+  letter-spacing: var(--tracking-label);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* Centered serif logotype. */
+@utility wordmark {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1;
+  letter-spacing: var(--tracking-wordmark);
+  text-transform: uppercase;
+
+  @variant md {
+    font-size: 1.75rem;
+  }
+}
+
+/* 2 → 4 columns; tight column gap, airy rows for the caption. No 3-column
+   step: grids hold 4 or 8 pieces and would leave an orphan row. */
+@utility product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--tile);
+  row-gap: 2.5rem;
+
+  @variant md {
+    row-gap: 3.5rem;
+  }
+
+  @variant lg {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Image well: grey backdrop so packshots sit on a consistent ground. */
+@utility media-frame {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-mist);
+  aspect-ratio: var(--aspect-product);
+
+  & > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+/* Campaign image that fills the viewport under the header. Content sits
+   bottom-centre on a scrim; on phones the frame drops to a portrait crop.
+   A child marked [data-media] (e.g. a two-up of portraits) also acts as the
+   backdrop. */
+@utility hero {
+  position: relative;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  min-height: calc(100svh - var(--header-height));
+  overflow: hidden;
+  background: var(--color-mist);
+  color: var(--color-paper);
+  text-align: center;
+
+  & > :is(img, video, [data-media]) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 50% 0 0;
+    background: linear-gradient(to top, var(--color-scrim), transparent);
+    pointer-events: none;
+  }
+
+  & > :not(img, video, [data-media]) {
+    position: relative;
+    z-index: 1;
+    padding: var(--gutter) var(--gutter) calc(var(--gutter) * 2);
+  }
+}
+
+/* Two campaign tiles side by side, edge to edge; stacks on phones. */
+@utility editorial-split {
+  display: grid;
+  gap: var(--tile);
+
+  @variant md {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Horizontal scroll row (e.g. "more pieces"). Bleeds to the right edge,
+   snaps per card, no visible scrollbar. Children set their own width. */
+@utility rail {
+  display: grid;
+  grid-auto-flow: column;
+  /* Fixed tracks, not minmax(0, …): those shrink to fit instead of scrolling. */
+  grid-auto-columns: 70%;
+  gap: var(--tile);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  padding-inline: var(--gutter);
+  scrollbar-width: none;
+
+  & > * {
+    scroll-snap-align: start;
+  }
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @variant md {
+    /* A quarter-card peeks past the edge to signal scroll. */
+    grid-auto-columns: calc((100% - 3 * var(--tile)) / 3.25);
+  }
+
+  @variant xl {
+    grid-auto-columns: calc((100% - 4 * var(--tile)) / 4.25);
+  }
+}
+
+/* Centered kicker + serif heading that opens a section. */
+@utility section-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: calc(var(--section) / 2);
+  text-align: center;
+}
+
+/* Left-aligned section opener: title on the left, its action (link-cta) on
+   the right, sharing a baseline. Quieter than section-head, for shop rows. */
+@utility section-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: calc(var(--section) / 3);
+}
+
+/* ---------- Components ---------- */
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding-inline: 2rem;
+    border: 1px solid transparent;
+    border-radius: 0;
+    font-size: var(--text-eyebrow);
+    line-height: var(--text-eyebrow--line-height);
+    letter-spacing: var(--tracking-label);
+    font-weight: 500;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 200ms var(--ease-standard),
+      color 200ms var(--ease-standard),
+      border-color 200ms var(--ease-standard);
+
+    &:disabled,
+    &[aria-disabled="true"] {
+      background: var(--color-mist);
+      border-color: var(--color-line);
+      color: var(--color-muted);
+      pointer-events: none;
+    }
+  }
+
+  .btn-primary {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+
+    @media (hover: hover) {
+      &:hover {
+        background: var(--color-ink-soft);
+        border-color: var(--color-ink-soft);
+      }
+    }
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+
+    @media (hover: hover) {
+      &:hover {
+        background: var(--color-ink);
+        color: var(--color-paper);
+      }
+    }
+  }
+
+  /* On photography: paper fill, inverts to ink on hover. */
+  .btn-on-image {
+    background: var(--color-paper);
+    border-color: var(--color-paper);
+    color: var(--color-ink);
+
+    @media (hover: hover) {
+      &:hover {
+        background: var(--color-ink);
+        border-color: var(--color-ink);
+        color: var(--color-paper);
+      }
+    }
+  }
+
+  /* Square icon-only control (bag, search, close). Needs an aria-label. */
+  .btn-icon {
+    min-height: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+
+    & > svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  .btn-sm {
+    min-height: 2.5rem;
+    padding-inline: 1.25rem;
+  }
+
+  .btn-block {
+    width: 100%;
+  }
+
+  /* Inline text link: underlined, the line lifts on hover. */
+  .link {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.25em;
+    transition: text-decoration-color 200ms var(--ease-standard);
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration-color: transparent;
+      }
+    }
+  }
+
+  /* Navigation link: no line until hover or current page. */
+  .link-quiet {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.35em;
+    text-decoration-color: transparent;
+    transition: text-decoration-color 200ms var(--ease-standard);
+
+    &[aria-current="page"] {
+      text-decoration-color: currentColor;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration-color: currentColor;
+      }
+    }
+  }
+
+  /* Standalone call to action: uppercase label, always underlined.
+     Used instead of a button where a button would be too loud. */
+  .link-cta {
+    font-size: var(--text-eyebrow);
+    line-height: var(--text-eyebrow--line-height);
+    letter-spacing: var(--tracking-label);
+    font-weight: 500;
+    text-transform: uppercase;
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.5em;
+    transition: opacity 200ms var(--ease-standard);
+
+    @media (hover: hover) {
+      &:hover {
+        opacity: 0.6;
+      }
+    }
+  }
+
+  /* Text input: bottom rule only, square, label above. */
+  .field {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    padding-block: 0.75rem;
+    border: 0;
+    border-bottom: 1px solid var(--color-line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-ink);
+    font-size: 1rem; /* ≥16px so iOS doesn't zoom on focus */
+    transition: border-color 200ms var(--ease-standard);
+
+    &::placeholder {
+      color: var(--color-muted);
+    }
+
+    &:hover,
+    &:focus-visible {
+      border-bottom-color: var(--color-ink);
+    }
+
+    /* The rule thickens to 2px instead of the global outline. */
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 1px 0 var(--color-ink);
+    }
+
+    &[aria-invalid="true"] {
+      border-bottom-color: var(--color-alert);
+    }
+
+    @variant md {
+      font-size: var(--text-body);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+  }
+}
