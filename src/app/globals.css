@@ -495,6 +495,18 @@
   }
 }
 
+/* The 3D stage's caption rises in each time the act changes. */
+@keyframes stage-caption {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+.stage-caption {
+  animation: stage-caption 600ms var(--ease-standard);
+}
+
 /* The page stays put behind an open menu or search. */
 html:has(dialog[open]) {
   overflow: hidden;
@@ -505,5 +517,9 @@ html:has(dialog[open]) {
   ::before,
   ::after {
     transition-duration: 0.01ms !important;
+  }
+
+  .stage-caption {
+    animation: none;
   }
 }

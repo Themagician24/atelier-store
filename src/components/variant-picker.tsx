@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AddToBag } from "@/components/add-to-bag";
 import { useColourSelection } from "@/components/colour-selection";
 import type { ProductVariant } from "@/lib/products";
 import { stockCopy, stockTone, type StockState } from "@/lib/stock";
@@ -79,6 +80,13 @@ export function VariantPicker({
         </p>
         {stockDetail && <p className="mt-2 text-muted">{stockDetail}</p>}
       </div>
+
+      {/* Keyed so a message about one size clears when another is picked. */}
+      <AddToBag
+        key={selected?.sku ?? "none"}
+        sku={selected?.sku ?? null}
+        stock={stock}
+      />
     </div>
   );
 }

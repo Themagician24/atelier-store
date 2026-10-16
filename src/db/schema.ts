@@ -7,6 +7,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -39,6 +40,8 @@ export const user = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  cartItems: many(cartItems),
+  orders: many(orders),
 }));
 
 export const session = pgTable(
@@ -233,10 +236,172 @@ export const productVariants = pgTable(
 
 export const productVariantsRelations = relations(
   productVariants,
-  ({ one }) => ({
+  ({ one, many }) => ({
     product: one(products, {
       fields: [productVariants.productId],
       references: [products.id],
     }),
+    cartItems: many(cartItems),
+    orderItems: many(orderItems),
   }),
 );
+
+// --- Bag --------------------------------------------------------------------
+
+/**
+ * One row per variant in a signed-in user's bag; the user is the bag, so
+ * there is no carts table. No price is stored: it is read live from
+ * products.price_cents, and the quantity is re-capped against stock on read.
+ */
+export const cartItems = pgTable(
+  "cart_items",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    variantId: uuid()
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
+    quantity: integer().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // The upsert target: adding a variant twice raises its quantity.
+    unique("cart_items_user_variant_key").on(t.userId, t.variantId),
+    check("cart_items_quantity_check", sql`${t.quantity} >= 1`),
+  ],
+);
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+  user: one(user, { fields: [cartItems.userId], references: [user.id] }),
+  variant: one(productVariants, {
+    fields: [cartItems.variantId],
+    references: [productVariants.id],
+  }),
+}));
+
+// --- Orders -----------------------------------------------------------------
+
+export const orderStatuses = [
+  "pending",
+  "processing",
+  "paid",
+  "payment_failed",
+  "expired",
+  "cancelled",
+] as const;
+export type OrderStatus = (typeof orderStatuses)[number];
+
+export type ShippingAddress = {
+  name: string | null;
+  line1: string | null;
+  line2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+};
+
+/**
+ * Created `pending` when checkout starts, with its lines snapshotted in
+ * order_items; only the Stripe webhook moves it on. The browser never sets a
+ * status or an amount.
+ */
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    // Public identifier for URLs and receipts, e.g. AT-7F3K9Q.
+    reference: text().notNull().unique(),
+    // Nullable so an order outlives the account it was placed from.
+    userId: text().references(() => user.id, { onDelete: "set null" }),
+    email: text().notNull(),
+    status: text().$type<OrderStatus>().notNull().default("pending"),
+    currency: text().notNull().default("usd"),
+    // Our own sum at checkout start; Stripe's amount_subtotal must match it.
+    subtotalCents: integer().notNull(),
+    shippingCents: integer().notNull().default(0),
+    // Stripe's amount_total, set when the payment is confirmed.
+    totalCents: integer(),
+    // UNIQUE: one order per Checkout Session, whatever the webhook replays.
+    stripeCheckoutSessionId: text().unique(),
+    stripePaymentIntentId: text(),
+    shippingAddress: jsonb().$type<ShippingAddress>(),
+    // Flags for the admin: Stripe charged a different subtotal, or stock had
+    // already run out when the payment landed (the accepted oversell window).
+    amountMismatch: boolean().notNull().default(false),
+    oversold: boolean().notNull().default(false),
+    paidAt: timestamp({ withTimezone: true }),
+    expiresAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("orders_user_id_created_at_idx").on(t.userId, t.createdAt),
+    index("orders_status_idx").on(t.status),
+    check(
+      "orders_status_check",
+      sql`${t.status} in ('pending', 'processing', 'paid', 'payment_failed', 'expired', 'cancelled')`,
+    ),
+    check("orders_subtotal_cents_check", sql`${t.subtotalCents} >= 0`),
+  ],
+);
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(user, { fields: [orders.userId], references: [user.id] }),
+  items: many(orderItems),
+}));
+
+/** What was bought, as it was at checkout: never re-read from the catalogue. */
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    orderId: uuid()
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // Null once the variant is deleted; the snapshot still describes it.
+    variantId: uuid().references(() => productVariants.id, {
+      onDelete: "set null",
+    }),
+    sku: text().notNull(),
+    productSlug: text().notNull(),
+    productName: text().notNull(),
+    colour: text().notNull(),
+    size: text().notNull(),
+    imageUrl: text(),
+    madeToOrder: boolean().notNull(),
+    unitPriceCents: integer().notNull(),
+    quantity: integer().notNull(),
+    lineTotalCents: integer().notNull(),
+  },
+  (t) => [
+    // One line per variant, as in the bag it was copied from.
+    unique("order_items_order_variant_key").on(t.orderId, t.variantId),
+    check("order_items_quantity_check", sql`${t.quantity} >= 1`),
+  ],
+);
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
+  variant: one(productVariants, {
+    fields: [orderItems.variantId],
+    references: [productVariants.id],
+  }),
+}));
+
+/** Every Stripe event already applied, keyed by its evt_ id. */
+export const stripeEvents = pgTable("stripe_events", {
+  id: text().primaryKey(),
+  type: text().notNull(),
+  stripeCreatedAt: timestamp({ withTimezone: true }).notNull(),
+  receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});

@@ -14,14 +14,21 @@ export type CurrentUser = {
   name: string;
   email: string;
   role: "customer" | "admin";
+  createdAt: Date;
 };
 
 /** One database read per request, however many components ask. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
-  const { id, name, email, role } = session.user;
-  return { id, name, email, role: role === "admin" ? "admin" : "customer" };
+  const { id, name, email, role, createdAt } = session.user;
+  return {
+    id,
+    name,
+    email,
+    role: role === "admin" ? "admin" : "customer",
+    createdAt: new Date(createdAt),
+  };
 });
 
 /** Signed-in user, or a redirect to sign-in that returns to `next`. */

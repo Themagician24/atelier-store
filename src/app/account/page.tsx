@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
-import { signOut } from "@/app/(auth)/actions";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -10,46 +8,67 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+const memberSince = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+});
+
 export default function AccountPage() {
   return (
-    <>
-      <SiteHeader />
-      <main className="flex-1">
-        <section aria-labelledby="page-title" className="shell py-section">
-          <div className="section-head">
-            <h1 id="page-title" className="text-display">
-              Your account
-            </h1>
-          </div>
-          <Suspense fallback={<div className="min-h-48" />}>
-            <AccountDetails />
-          </Suspense>
-        </section>
-      </main>
-      <SiteFooter />
-    </>
+    <section aria-labelledby="details-title" className="flex max-w-reading flex-col gap-8">
+      <h2 id="details-title" className="text-title">
+        Account details
+      </h2>
+      <Suspense fallback={<DetailsSkeleton />}>
+        <AccountDetails />
+      </Suspense>
+    </section>
   );
 }
 
 async function AccountDetails() {
   const user = await requireUser("/account");
+  const rows = [
+    { label: "Name", value: user.name },
+    { label: "Email", value: user.email },
+    { label: "Sign-in method", value: "Email and password" },
+    { label: "Member since", value: memberSince.format(user.createdAt) },
+  ];
+
   return (
-    <div className="flex max-w-reading flex-col gap-8">
-      <dl className="flex flex-col gap-4">
-        <div>
-          <dt className="eyebrow text-muted">Name</dt>
-          <dd className="text-lead">{user.name}</dd>
-        </div>
-        <div>
-          <dt className="eyebrow text-muted">Email</dt>
-          <dd className="text-lead">{user.email}</dd>
-        </div>
+    <>
+      <dl className="border-t">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-col gap-1 border-b py-5">
+            <dt className="eyebrow text-muted">{row.label}</dt>
+            <dd className="text-lead wrap-anywhere">{row.value}</dd>
+          </div>
+        ))}
       </dl>
-      <form action={signOut}>
-        <button type="submit" className="btn btn-secondary">
-          Sign out
-        </button>
-      </form>
+      <p className="text-muted">
+        To change your name or email, contact{" "}
+        <Link href="/help/contact" className="link text-ink">
+          client services
+        </Link>
+        .
+      </p>
+      <Link href="/new-arrivals" className="link-cta self-start">
+        Continue shopping
+      </Link>
+    </>
+  );
+}
+
+// Same rows and heights as the details, so nothing shifts when they stream in.
+function DetailsSkeleton() {
+  return (
+    <div aria-hidden="true" className="border-t">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="flex flex-col gap-1 border-b py-5">
+          <div className="h-4 w-20 bg-mist" />
+          <div className="h-[1.7rem] w-40 max-w-full bg-mist" />
+        </div>
+      ))}
     </div>
   );
 }

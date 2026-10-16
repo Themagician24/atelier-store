@@ -14,5 +14,10 @@ export function proxy(request: NextRequest) {
 
 // Protected areas only. /api/** stays out: Stripe sends no cookie.
 export const config = {
-  matcher: ["/account/:path*", "/admin/:path*"],
+  matcher: [
+    "/account/:path*",
+    "/admin/:path*",
+    "/bag/:path*",
+    "/checkout/:path*",
+  ],
 };

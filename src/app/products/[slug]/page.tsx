@@ -6,10 +6,12 @@ import { ColourSelectionProvider } from "@/components/colour-selection";
 import { Price } from "@/components/price";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
+import { ProductStage } from "@/components/product-3d/product-stage";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { VariantPicker } from "@/components/variant-picker";
 import { getProduct, getProductSlugs, getRelatedProducts } from "@/lib/products";
+import { productModel } from "@/lib/product-models";
 
 const RELATED_COUNT = 4;
 
@@ -56,14 +58,30 @@ async function ProductDetails({
   if (!product) notFound();
 
   const related = await getRelatedProducts(product, RELATED_COUNT);
+  const model = productModel(product.slug);
 
   return (
     <ColourSelectionProvider initialColour={product.colours[0]}>
       <div className="md:grid md:grid-cols-[3fr_2fr] xl:grid-cols-[2fr_1fr]">
-        <ProductGallery
-          images={product.images}
-          sizes="(min-width: 80rem) 56vw, (min-width: 48rem) 50vw, 100vw"
-        />
+        {model ? (
+          // The 3D stage leads; the photos follow once it has played.
+          <div>
+            <ProductStage
+              kind={model}
+              productName={product.name}
+              poster={product.images[0]}
+            />
+            <ProductGallery
+              images={product.images}
+              sizes="(min-width: 80rem) 56vw, (min-width: 48rem) 50vw, 100vw"
+            />
+          </div>
+        ) : (
+          <ProductGallery
+            images={product.images}
+            sizes="(min-width: 80rem) 56vw, (min-width: 48rem) 50vw, 100vw"
+          />
+        )}
 
         {/* Stays in view while the gallery scrolls past. */}
         <section
