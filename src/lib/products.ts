@@ -8,6 +8,7 @@ import {
   products,
   productVariants,
 } from "@/db/schema";
+import type { Navigation, NavProduct, NavSection } from "@/lib/nav-types";
 import { stockState, type StockState } from "@/lib/stock";
 
 /*
@@ -187,6 +188,79 @@ export async function getRelatedProducts(
     },
   });
   return rows.map(mapProduct);
+}
+
+const NAV_SECTION_LIMIT = 8;
+
+/**
+ * The header's menus: "New Arrivals" then every category in catalogue order,
+ * each with its newest pieces, plus the full search index. Categories with
+ * no pieces yet are left out rather than opening an empty menu.
+ */
+export async function getNavigation(): Promise<Navigation> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("products");
+
+  const [categoryRows, productRows] = await Promise.all([
+    db
+      .select({ slug: categories.slug, name: categories.name })
+      .from(categories)
+      .orderBy(asc(categories.createdAt)),
+    db.query.products.findMany({
+      orderBy: [desc(products.createdAt)],
+      with: {
+        category: { columns: { slug: true, name: true } },
+        images: {
+          columns: { url: true, alt: true, colour: true },
+          orderBy: [asc(productImages.position)],
+        },
+        variants: {
+          columns: { sku: true, colour: true, size: true, stockQuantity: true },
+          orderBy: [asc(productVariants.position)],
+        },
+      },
+    }),
+  ]);
+
+  const all = productRows.map(mapProduct).map(
+    (product): NavProduct => ({
+      slug: product.slug,
+      name: product.name,
+      category: product.category,
+      colours: product.colours,
+      price: product.price,
+      compareAt: product.compareAt,
+      stock: product.stock,
+      image: { url: product.images[0].url, alt: product.images[0].alt },
+    }),
+  );
+
+  const sections: NavSection[] = [
+    {
+      slug: "new-arrivals",
+      label: "New Arrivals",
+      href: "/new-arrivals",
+      products: all.slice(0, NAV_SECTION_LIMIT),
+      pieceCount: Math.min(all.length, NAV_SECTION_LIMIT),
+    },
+    ...categoryRows.flatMap((category) => {
+      const inCategory = all.filter((p) => p.category.slug === category.slug);
+      return inCategory.length === 0
+        ? []
+        : [
+            {
+              slug: category.slug,
+              label: category.name,
+              href: `/collections/${category.slug}`,
+              products: inCategory.slice(0, NAV_SECTION_LIMIT),
+              pieceCount: inCategory.length,
+            },
+          ];
+    }),
+  ];
+
+  return { sections, products: all };
 }
 
 /** Categories that have a cover image, with piece counts derived from products. */

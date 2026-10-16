@@ -481,6 +481,25 @@
   }
 }
 
+/* Header panels and search drop from the bar; the phone menu slides in. */
+@keyframes nav-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+}
+
+@keyframes nav-slide {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* The page stays put behind an open menu or search. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
