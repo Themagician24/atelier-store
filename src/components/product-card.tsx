@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Price } from "@/components/price";
+import { TrackedProductLink } from "@/components/track-event";
 import type { Product } from "@/lib/products";
 import { stockCopy, stockTone } from "@/lib/stock";
 
@@ -17,7 +17,7 @@ export function ProductCard({
   return (
     // relative: anchors Price's sr-only spans, which would otherwise escape
     // a rail's scroll clip and widen the page.
-    <Link href={`/products/${product.slug}`} className="group relative block">
+    <TrackedProductLink slug={product.slug} className="group relative block">
       <div className="media-frame">
         <Image
           src={image.url}
@@ -46,6 +46,6 @@ export function ProductCard({
           )}
         </div>
       </div>
-    </Link>
+    </TrackedProductLink>
   );
 }

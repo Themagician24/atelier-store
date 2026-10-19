@@ -11,7 +11,9 @@ import { useEffect, useState } from "react";
 const INTERVAL_MS = 2500;
 const ATTEMPTS = 12;
 
-export function AwaitConfirmation({ reference }: { reference: string }) {
+// Without a reference (already on the order page) there is nowhere better
+// to send the customer, so giving up only says to check back.
+export function AwaitConfirmation({ reference }: { reference?: string }) {
   const router = useRouter();
   const [gaveUp, setGaveUp] = useState(false);
 
@@ -27,6 +29,15 @@ export function AwaitConfirmation({ reference }: { reference: string }) {
     }, INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [router]);
+
+  if (gaveUp && !reference) {
+    return (
+      <p role="status" className="text-ui text-muted">
+        This is taking longer than usual. Your payment may still be on its
+        way — check back in a few minutes.
+      </p>
+    );
+  }
 
   if (gaveUp) {
     return (

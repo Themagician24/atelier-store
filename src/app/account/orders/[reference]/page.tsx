@@ -2,14 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import type { ShippingAddress } from "@/db/schema";
+import { AwaitConfirmation } from "@/app/checkout/success/await-confirmation";
 import { OrderLines, OrderLinesSkeleton } from "@/components/order-lines";
+import { formatCents } from "@/lib/format";
+import { fulfilmentCopy } from "@/lib/fulfilment";
 import { getOrder } from "@/lib/orders";
-import { orderStatusCopy, orderStatusTone, type OrderDetail } from "@/lib/order-types";
+import {
+  formatAddress,
+  orderStatusCopy,
+  orderStatusTone,
+  type OrderDetail,
+} from "@/lib/order-types";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Order details — Atelier",
+  title: "Order details",
   robots: { index: false },
 };
 
@@ -87,6 +94,12 @@ function StatusPanel({ order }: { order: OrderDetail }) {
         {orderStatusCopy[order.status]}
       </p>
       <p className="text-ui text-muted">{statusDetail(order)}</p>
+      {/* Re-reads the order until the webhook moves it on. */}
+      {order.status === "pending" && (
+        <div className="mt-2">
+          <AwaitConfirmation />
+        </div>
+      )}
     </div>
   );
 }
@@ -95,25 +108,33 @@ function statusDetail(order: OrderDetail): string {
   switch (order.status) {
     case "paid":
       return order.paidAt
-        ? `Payment confirmed on ${longDate.format(order.paidAt)}. A receipt was sent to ${order.email}.`
-        : `Payment confirmed. A receipt was sent to ${order.email}.`;
+        ? `Payment confirmed on ${longDate.format(order.paidAt)}.`
+        : "Payment confirmed.";
     case "pending":
       return "We're waiting for the payment to be confirmed. This usually takes a few seconds.";
     case "processing":
-      return "Your bank is processing the payment, which can take a few days. We'll email you when it clears.";
+      return "Your bank is processing the payment, which can take a few days. This page updates when it clears.";
     case "payment_failed":
       return "The payment didn't go through and nothing was charged. Your pieces are still in your bag if you'd like to try again.";
     case "expired":
       return "This checkout closed before it was paid. Nothing was charged.";
     case "cancelled":
       return "This checkout was replaced by a newer one. Nothing was charged on it.";
+    case "refunded":
+      return "This order was refunded in full to your original payment method.";
   }
 }
 
 function OrderFacts({ order }: { order: OrderDetail }) {
   const address = formatAddress(order.shippingAddress);
   const rows = [
-    { label: "Confirmation sent to", value: [order.email] },
+    ...(order.status === "paid"
+      ? [{ label: "Delivery status", value: [deliveryLine(order)] }]
+      : []),
+    ...(order.refundedCents > 0
+      ? [{ label: "Refunded", value: [formatCents(order.refundedCents)] }]
+      : []),
+    { label: "Account email", value: [order.email] },
     ...(address ? [{ label: "Shipping to", value: address }] : []),
   ];
 
@@ -135,18 +156,15 @@ function OrderFacts({ order }: { order: OrderDetail }) {
   );
 }
 
-function formatAddress(address: ShippingAddress | null): string[] | null {
-  if (!address) return null;
-  const cityLine = [
-    address.city,
-    [address.state, address.postalCode].filter(Boolean).join(" "),
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const lines = [address.name, address.line1, address.line2, cityLine].filter(
-    (l): l is string => Boolean(l),
-  );
-  return lines.length > 0 ? lines : null;
+function deliveryLine(order: OrderDetail): string {
+  const label = fulfilmentCopy[order.fulfilmentStatus];
+  const at =
+    order.fulfilmentStatus === "delivered"
+      ? order.deliveredAt
+      : order.fulfilmentStatus === "shipped"
+        ? order.shippedAt
+        : null;
+  return at ? `${label} on ${longDate.format(at)}` : label;
 }
 
 function OrderSkeleton() {

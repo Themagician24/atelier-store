@@ -37,4 +37,6 @@ export type Bag = {
 export type CartActionState = {
   ok: boolean;
   message: string;
+  /** Pieces in the bag after the action, for the header badge. */
+  itemCount?: number;
 } | null;

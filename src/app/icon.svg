@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">
+  <defs>
+    <mask id="j" maskUnits="userSpaceOnUse">
+      <rect width="44" height="44" fill="#fff"/>
+      <path d="M2 28 H13" stroke="#000" stroke-width="4.6"/>
+    </mask>
+    <mask id="b" maskUnits="userSpaceOnUse">
+      <rect width="44" height="44" fill="#fff"/>
+      <path d="M20.2 4 H23.8 L35.5 40 H30.5 Z" fill="#000" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="44" height="44" fill="#000"/>
+  <g fill="#fff" stroke="#fff" transform="translate(22 22) scale(0.8) translate(-22.5 -22)">
+    <g mask="url(#j)">
+      <path d="M8.5 9 V30 Q8.5 35.5 4 35.5" stroke-width="4" fill="none"/>
+      <path d="M4.5 9 H12.5" stroke-width="1.8"/>
+      <circle cx="3.6" cy="33.6" r="2.1" stroke="none"/>
+    </g>
+    <g mask="url(#b)" fill="none" stroke-width="2.2">
+      <path d="M33.8 14 V36" stroke-width="3.6"/>
+      <path d="M32 14.9 H37 Q40.6 14.9 40.6 19.5 Q40.6 24.6 37 24.6 H32"/>
+      <path d="M32 24.6 H37.6 Q42 24.6 42 30.2 Q42 35.1 37.6 35.1 H32"/>
+    </g>
+    <path d="M21.4 4 L11 40" stroke-width="1.8" fill="none"/>
+    <path d="M20.2 4 H23.8 L35.5 40 H30.5 Z" stroke="none"/>
+    <path d="M3 28 H32" stroke-width="1.8"/>
+    <path d="M8 40 H14 M29 40 H37.5" stroke-width="1.8"/>
+  </g>
+</svg>

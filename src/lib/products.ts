@@ -1,5 +1,15 @@
 import "server-only";
-import { and, asc, count, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  max,
+  ne,
+} from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db";
 import {
@@ -38,6 +48,8 @@ export type Product = {
   care: string;
   images: ProductImage[];
   variants: ProductVariant[];
+  /** ISO timestamp of the last catalogue edit, for the sitemap. */
+  updatedAt: string;
 };
 
 export type ProductVariant = {
@@ -66,8 +78,14 @@ type ProductRow = typeof products.$inferSelect & {
   }[];
 };
 
+// Draft and archived products never leave the back office.
+// A function, not a shared constant: the relational query builder rewrites
+// the columns of a condition it receives, so one SQL object reused across
+// queries renders broken (`where  = $1`).
+const onSale = () => eq(products.status, "active");
+
 function mapProduct(row: ProductRow): Product {
-  const { madeToOrder } = row;
+  const { madeToOrder, lowStockThreshold } = row;
   return {
     slug: row.slug,
     name: row.name,
@@ -78,6 +96,7 @@ function mapProduct(row: ProductRow): Product {
     stock: stockState({
       stockQuantity: row.variants.reduce((n, v) => n + v.stockQuantity, 0),
       madeToOrder,
+      lowStockThreshold,
     }),
     stockDetail: row.stockDetail,
     description: row.description,
@@ -86,8 +105,9 @@ function mapProduct(row: ProductRow): Product {
     images: row.images,
     variants: row.variants.map(({ stockQuantity, ...v }) => ({
       ...v,
-      stock: stockState({ stockQuantity, madeToOrder }),
+      stock: stockState({ stockQuantity, madeToOrder, lowStockThreshold }),
     })),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -104,6 +124,7 @@ export async function getNewestProducts({
   cacheTag("products");
 
   const rows = await db.query.products.findMany({
+    where: onSale(),
     orderBy: [desc(products.createdAt)],
     limit,
     offset,
@@ -127,7 +148,10 @@ export async function getProductSlugs(): Promise<string[]> {
   cacheLife("hours");
   cacheTag("products");
 
-  const rows = await db.select({ slug: products.slug }).from(products);
+  const rows = await db
+    .select({ slug: products.slug })
+    .from(products)
+    .where(onSale());
   return rows.map((row) => row.slug);
 }
 
@@ -137,7 +161,7 @@ export async function getProduct(slug: string): Promise<Product | null> {
   cacheTag("products");
 
   const row = await db.query.products.findFirst({
-    where: eq(products.slug, slug),
+    where: and(eq(products.slug, slug), onSale()),
     with: {
       category: { columns: { slug: true, name: true } },
       images: {
@@ -172,6 +196,7 @@ export async function getRelatedProducts(
           .where(eq(categories.slug, product.category.slug)),
       ),
       ne(products.slug, product.slug),
+      onSale(),
     ),
     orderBy: [desc(products.createdAt)],
     limit,
@@ -217,6 +242,7 @@ export async function getCategory(slug: string): Promise<Category | null> {
     columns: { slug: true, name: true },
     with: {
       products: {
+        where: onSale(),
         orderBy: [desc(products.createdAt)],
         with: {
           category: { columns: { slug: true, name: true } },
@@ -258,6 +284,7 @@ export async function getNavigation(): Promise<Navigation> {
       .from(categories)
       .orderBy(asc(categories.createdAt)),
     db.query.products.findMany({
+      where: onSale(),
       orderBy: [desc(products.createdAt)],
       with: {
         category: { columns: { slug: true, name: true } },
@@ -328,7 +355,7 @@ export async function getCollections(): Promise<Collection[]> {
       pieceCount: count(products.id),
     })
     .from(categories)
-    .leftJoin(products, eq(products.categoryId, categories.id))
+    .leftJoin(products, and(eq(products.categoryId, categories.id), onSale()))
     .where(and(isNotNull(categories.imageUrl), isNotNull(categories.imageAlt)))
     .groupBy(categories.id)
     .orderBy(asc(categories.createdAt));
@@ -336,4 +363,39 @@ export async function getCollections(): Promise<Collection[]> {
   return rows.flatMap(({ imageUrl, imageAlt, ...row }) =>
     imageUrl && imageAlt ? [{ ...row, imageUrl, imageAlt }] : [],
   );
+}
+
+export type SitemapEntry = { path: string; lastModified: string };
+
+/**
+ * Every indexable catalogue URL with its last edit: products on sale, and
+ * the collections that hold at least one of them.
+ */
+export async function getSitemapEntries(): Promise<SitemapEntry[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("products");
+
+  const [productRows, categoryRows] = await Promise.all([
+    db
+      .select({ slug: products.slug, updatedAt: products.updatedAt })
+      .from(products)
+      .where(onSale()),
+    db
+      .select({ slug: categories.slug, updatedAt: max(products.updatedAt) })
+      .from(categories)
+      .innerJoin(products, and(eq(products.categoryId, categories.id), onSale()))
+      .groupBy(categories.id),
+  ]);
+
+  return [
+    ...categoryRows.map((c) => ({
+      path: `/collections/${c.slug}`,
+      lastModified: (c.updatedAt ?? new Date(0)).toISOString(),
+    })),
+    ...productRows.map((p) => ({
+      path: `/products/${p.slug}`,
+      lastModified: p.updatedAt.toISOString(),
+    })),
+  ];
 }

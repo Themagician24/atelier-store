@@ -73,3 +73,26 @@ export function applyTransition(
   if (!transition || !transition.from.includes(current)) return current;
   return transition.to;
 }
+
+// --- Refunds -------------------------------------------------------------------
+
+/** Statuses a refund may touch: only money that was actually taken. */
+export const REFUNDABLE: readonly OrderStatus[] = ["paid", "refunded"];
+
+/**
+ * What a `charge.refunded` event does. `amount_refunded` is cumulative, so
+ * events arriving out of order can only raise the refunded total, never
+ * lower it; the order turns `refunded` once the whole charge is back, and a
+ * partial refund only records the amount. Stock is never put back
+ * automatically: whether a piece returns to sale is a human decision.
+ */
+export function refundTransition(
+  current: OrderStatus,
+  charge: { amount: number; amountRefunded: number },
+  refundedSoFar: number,
+): { to: OrderStatus; refundedCents: number } | null {
+  if (!REFUNDABLE.includes(current)) return null;
+  const refundedCents = Math.max(refundedSoFar, Math.max(0, charge.amountRefunded));
+  const full = charge.amount > 0 && refundedCents >= charge.amount;
+  return { to: full ? "refunded" : current, refundedCents };
+}

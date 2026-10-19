@@ -1,15 +1,19 @@
 export type StockState = "in-stock" | "low-stock" | "made-to-order" | "sold-out";
 
-const LOW_STOCK_THRESHOLD = 3;
+/** Default for products.low_stock_threshold. */
+export const LOW_STOCK_THRESHOLD = 3;
 
 export function stockState({
   stockQuantity,
   madeToOrder,
+  lowStockThreshold = LOW_STOCK_THRESHOLD,
 }: {
   stockQuantity: number;
   madeToOrder: boolean;
+  /** Per product; at or below it (and above zero) reads as low. */
+  lowStockThreshold?: number;
 }): StockState {
-  if (stockQuantity > LOW_STOCK_THRESHOLD) return "in-stock";
+  if (stockQuantity > lowStockThreshold) return "in-stock";
   if (stockQuantity > 0) return "low-stock";
   return madeToOrder ? "made-to-order" : "sold-out";
 }

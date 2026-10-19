@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthPage } from "../auth-page";
 
 export const metadata: Metadata = {
-  title: "Sign in — Atelier",
+  title: "Sign in",
   robots: { index: false },
 };
 

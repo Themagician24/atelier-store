@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
@@ -5,6 +6,10 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getCollections, getNewestProducts } from "@/lib/products";
 import { unsplash } from "@/lib/unsplash";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const GRID_COUNT = 8;
 const RAIL_COUNT = 5;

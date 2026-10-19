@@ -7,7 +7,7 @@ import { orderStatusCopy, orderStatusTone } from "@/lib/order-types";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Your orders — Atelier",
+  title: "Your orders",
   robots: { index: false },
 };
 

@@ -9,6 +9,9 @@ export const mainNav: NavLink[] = [
   { label: "Bags", href: "/collections/bags" },
   { label: "Shoes", href: "/collections/shoes" },
   { label: "Accessories", href: "/collections/accessories" },
+  { label: "Watches", href: "/collections/watches" },
+  { label: "Jewellery", href: "/collections/jewellery" },
+  { label: "Fragrance", href: "/collections/fragrance" },
 ];
 
 export const footerNav: { title: string; links: NavLink[] }[] = [
@@ -19,17 +22,10 @@ export const footerNav: { title: string; links: NavLink[] }[] = [
   {
     title: "Client Services",
     links: [
-      { label: "Shipping & Returns", href: "/help/shipping" },
-      { label: "Size Guide", href: "/help/sizing" },
-      { label: "Garment Care", href: "/help/care" },
+      { label: "Shipping", href: "/help/shipping" },
       { label: "Contact Us", href: "/help/contact" },
-    ],
-  },
-  {
-    title: "The House",
-    links: [
-      { label: "Our Ateliers", href: "/about" },
-      { label: "Sustainability", href: "/sustainability" },
+      { label: "Your Orders", href: "/account/orders" },
+      { label: "Search", href: "/search" },
     ],
   },
 ];

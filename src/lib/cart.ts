@@ -2,7 +2,12 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cartItems, productImages, products, productVariants } from "@/db/schema";
-import { clampQuantity, maxQuantity, subtotalCents } from "@/lib/cart-math";
+import {
+  clampQuantity,
+  MAX_LINE_QUANTITY,
+  maxQuantity,
+  subtotalCents,
+} from "@/lib/cart-math";
 import type { Bag, BagLine } from "@/lib/cart-types";
 import { stockState } from "@/lib/stock";
 
@@ -13,6 +18,7 @@ import { stockState } from "@/lib/stock";
  * nothing here is cached.
  */
 
+/** A variant still on sale: draft and archived products can't be added. */
 async function findVariant(sku: string) {
   const [row] = await db
     .select({
@@ -22,7 +28,7 @@ async function findVariant(sku: string) {
     })
     .from(productVariants)
     .innerJoin(products, eq(products.id, productVariants.productId))
-    .where(eq(productVariants.sku, sku))
+    .where(and(eq(productVariants.sku, sku), eq(products.status, "active")))
     .limit(1);
   return row ?? null;
 }
@@ -173,6 +179,8 @@ export async function getBag(userId: string): Promise<Bag> {
               name: true,
               priceCents: true,
               madeToOrder: true,
+              status: true,
+              lowStockThreshold: true,
             },
             with: {
               images: {
@@ -188,10 +196,15 @@ export async function getBag(userId: string): Promise<Bag> {
 
   const lines = rows.map(({ quantity: stored, variant }): BagLine => {
     const { product } = variant;
-    const max = maxQuantity({
-      stockQuantity: variant.stockQuantity,
-      madeToOrder: product.madeToOrder,
-    });
+    // A product taken off sale stays in the bag as unavailable, which blocks
+    // checkout until the customer removes it.
+    const max =
+      product.status === "active"
+        ? maxQuantity({
+            stockQuantity: variant.stockQuantity,
+            madeToOrder: product.madeToOrder,
+          })
+        : 0;
     const quantity = Math.min(stored, max);
     // The photo of this colour, else the packshot that stands in for all.
     const image =
@@ -211,10 +224,14 @@ export async function getBag(userId: string): Promise<Bag> {
       maxQuantity: max,
       status:
         quantity === 0 ? "unavailable" : quantity < stored ? "reduced" : "ok",
-      stock: stockState({
-        stockQuantity: variant.stockQuantity,
-        madeToOrder: product.madeToOrder,
-      }),
+      stock:
+        product.status === "active"
+          ? stockState({
+              stockQuantity: variant.stockQuantity,
+              madeToOrder: product.madeToOrder,
+              lowStockThreshold: product.lowStockThreshold,
+            })
+          : "sold-out",
     };
   });
 
@@ -223,4 +240,25 @@ export async function getBag(userId: string): Promise<Bag> {
     subtotalCents: subtotalCents(lines),
     itemCount: lines.reduce((n, l) => n + l.quantity, 0),
   };
+}
+
+/**
+ * The header badge: the same number as getBag().itemCount (each line capped
+ * by maxQuantity(), lines of products off sale counted as 0) in one
+ * aggregate, without loading the lines, products and photos.
+ */
+export async function bagItemCount(userId: string): Promise<number> {
+  const result = await db.execute(sql`
+    select coalesce(sum(
+      case
+        when p.status <> 'active' then 0
+        when p.made_to_order then least(c.quantity, ${MAX_LINE_QUANTITY})
+        else least(c.quantity, greatest(least(v.stock_quantity, ${MAX_LINE_QUANTITY}), 0))
+      end
+    ), 0)::int as n
+    from cart_items c
+    join product_variants v on v.id = c.variant_id
+    join products p on p.id = v.product_id
+    where c.user_id = ${userId}`);
+  return Number((result.rows[0] as { n: number }).n);
 }

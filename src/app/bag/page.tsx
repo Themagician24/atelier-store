@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { SiteFooter } from "@/components/site-footer";
+import { BagCountSync } from "@/components/session-provider";
 import { SiteHeader } from "@/components/site-header";
 import { getBag } from "@/lib/cart";
 import type { Bag } from "@/lib/cart-types";
@@ -27,7 +28,7 @@ function readNotice(raw: string | string[] | undefined): CheckoutNotice | null {
 }
 
 export const metadata: Metadata = {
-  title: "Your bag — Atelier",
+  title: "Your bag",
   robots: { index: false },
 };
 
@@ -56,10 +57,12 @@ async function BagContents({
   const user = await requireUser("/bag");
   const [bag, params] = await Promise.all([getBag(user.id), searchParams]);
   const notice = readNotice(params.checkout);
+  const sync = <BagCountSync count={bag.itemCount} />;
 
   if (bag.lines.length === 0) {
     return (
       <>
+        {sync}
         {notice && <Notice notice={notice} />}
         <EmptyBag />
       </>
@@ -68,6 +71,7 @@ async function BagContents({
 
   return (
     <>
+      {sync}
       {notice && <Notice notice={notice} />}
       <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-16 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <section aria-labelledby="pieces-title">

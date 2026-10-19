@@ -7,6 +7,12 @@ import {
   productVariants,
 } from "../src/db/schema";
 import { unsplash } from "../src/lib/unsplash";
+import {
+  accessoriesCover,
+  extendedCategories,
+  extendedCreatedAt,
+  extendedProducts,
+} from "./catalogue-extended";
 
 /*
  * Idempotent: wipes the catalogue and re-inserts it in one db.batch(), which
@@ -62,8 +68,8 @@ const categoryRows: SeedCategory[] = [
     imageUrl: unsplash("1608256246200-53e635b5b65f"),
     imageAlt: "A pair of brown leather lace-up boots on a dark ground",
   },
-  // No cover image yet, so it stays out of the homepage strip.
-  { slug: "accessories", name: "Accessories", imageUrl: null, imageAlt: null },
+  { slug: "accessories", name: "Accessories", ...accessoriesCover },
+  ...extendedCategories,
 ];
 
 /*
@@ -1701,8 +1707,17 @@ async function main() {
     categoryRows.map((c) => [c.slug, crypto.randomUUID()]),
   );
 
-  const seeded = productRows.map(
-    ({ categorySlug, images: ownImages, sizes, colours: ownColours, ...row }, i) => {
+  // The extended catalogue (scripts/catalogue-extended.ts) is dated just
+  // after the original pieces, so it leads "newest first".
+  const rows = [
+    ...productRows.map((row, i) => ({ row, createdAt: new Date(BASE_DATE - i * day) })),
+    ...extendedProducts.map((row, i) => ({ row, createdAt: extendedCreatedAt(i) })),
+  ];
+  const slugs = new Set(rows.map(({ row }) => row.slug));
+  if (slugs.size !== rows.length) throw new Error("Duplicate product slug");
+
+  const seeded = rows.map(
+    ({ row: { categorySlug, images: ownImages, sizes, colours: ownColours, ...row }, createdAt }) => {
       const categoryId = categoryIds.get(categorySlug);
       if (!categoryId) throw new Error(`Unknown category "${categorySlug}"`);
       const id = crypto.randomUUID();
@@ -1737,7 +1752,7 @@ async function main() {
           ...row,
           id,
           categoryId,
-          createdAt: new Date(BASE_DATE - i * day),
+          createdAt,
         },
         images: images.map((image, position) => ({
           ...image,

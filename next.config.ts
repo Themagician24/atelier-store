@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // No Next.js badge over the storefront in dev; build errors still show.
+  devIndicators: false,
   partialPrefetching: true,
   images: {
     // Unsplash's CDN resizes for us; going through /_next/image meant

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useOptimistic, useTransition, type ReactNode } from "react";
 import { removeFromBag, updateQuantity } from "@/app/bag/actions";
+import { setBagCount } from "@/components/session-provider";
 import { MAX_LINE_QUANTITY } from "@/lib/cart-math";
 import type { BagLine as Line } from "@/lib/cart-types";
 import { formatCents } from "@/lib/format";
@@ -29,7 +30,7 @@ export function BagLine({ line }: { line: Line }) {
       const data = new FormData();
       data.set("sku", sku);
       data.set("quantity", String(quantity));
-      await updateQuantity(data);
+      setBagCount(await updateQuantity(data));
     });
   }
 
@@ -38,7 +39,7 @@ export function BagLine({ line }: { line: Line }) {
       setView({ removing: true });
       const data = new FormData();
       data.set("sku", sku);
-      await removeFromBag(data);
+      setBagCount(await removeFromBag(data));
     });
   }
 

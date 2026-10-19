@@ -5,6 +5,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -34,7 +35,10 @@ export const user = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [check("user_role_check", sql`${t.role} in ('customer', 'admin')`)],
+  (t) => [
+    check("user_role_check", sql`${t.role} in ('customer', 'admin')`),
+    index("user_created_at_idx").on(t.createdAt),
+  ],
 );
 
 export const userRelations = relations(user, ({ many }) => ({
@@ -140,6 +144,9 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
   products: many(products),
 }));
 
+export const productStatuses = ["active", "draft", "archived"] as const;
+export type ProductStatus = (typeof productStatuses)[number];
+
 export const products = pgTable(
   "products",
   {
@@ -154,6 +161,12 @@ export const products = pgTable(
     // Stock is held per variant; the UI state is derived by stockState().
     madeToOrder: boolean().notNull().default(false),
     stockDetail: text(),
+    // Only `active` products reach the storefront, the sitemap and the bag.
+    // Archiving is the way out for anything that has been ordered: deleting
+    // it would orphan the order history.
+    status: text().$type<ProductStatus>().notNull().default("active"),
+    // Total stock at or below this reads as "low" in the storefront and admin.
+    lowStockThreshold: integer().notNull().default(3),
     description: text().notNull(),
     details: text().array().notNull().default(sql`'{}'::text[]`),
     care: text().notNull(),
@@ -166,7 +179,16 @@ export const products = pgTable(
   (t) => [
     index("products_category_id_idx").on(t.categoryId),
     index("products_created_at_idx").on(t.createdAt),
+    index("products_status_idx").on(t.status),
     check("products_price_cents_check", sql`${t.priceCents} >= 0`),
+    check(
+      "products_status_check",
+      sql`${t.status} in ('active', 'draft', 'archived')`,
+    ),
+    check(
+      "products_low_stock_threshold_check",
+      sql`${t.lowStockThreshold} >= 0`,
+    ),
   ],
 );
 
@@ -177,6 +199,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   images: many(productImages),
   variants: many(productVariants),
+  events: many(productEvents),
 }));
 
 export const productImages = pgTable(
@@ -294,8 +317,18 @@ export const orderStatuses = [
   "payment_failed",
   "expired",
   "cancelled",
+  "refunded",
 ] as const;
 export type OrderStatus = (typeof orderStatuses)[number];
+
+/** Preparation and delivery, moved by an admin once an order is paid. */
+export const fulfilmentStatuses = [
+  "unfulfilled",
+  "preparing",
+  "shipped",
+  "delivered",
+] as const;
+export type FulfilmentStatus = (typeof fulfilmentStatuses)[number];
 
 export type ShippingAddress = {
   name: string | null;
@@ -336,6 +369,16 @@ export const orders = pgTable(
     // already run out when the payment landed (the accepted oversell window).
     amountMismatch: boolean().notNull().default(false),
     oversold: boolean().notNull().default(false),
+    // Stripe's charge.amount_refunded; the order turns `refunded` only when
+    // the whole amount is back.
+    refundedCents: integer().notNull().default(0),
+    refundedAt: timestamp({ withTimezone: true }),
+    fulfilmentStatus: text()
+      .$type<FulfilmentStatus>()
+      .notNull()
+      .default("unfulfilled"),
+    shippedAt: timestamp({ withTimezone: true }),
+    deliveredAt: timestamp({ withTimezone: true }),
     paidAt: timestamp({ withTimezone: true }),
     expiresAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -347,17 +390,25 @@ export const orders = pgTable(
   (t) => [
     index("orders_user_id_created_at_idx").on(t.userId, t.createdAt),
     index("orders_status_idx").on(t.status),
+    index("orders_created_at_idx").on(t.createdAt),
+    index("orders_paid_at_idx").on(t.paidAt),
     check(
       "orders_status_check",
-      sql`${t.status} in ('pending', 'processing', 'paid', 'payment_failed', 'expired', 'cancelled')`,
+      sql`${t.status} in ('pending', 'processing', 'paid', 'payment_failed', 'expired', 'cancelled', 'refunded')`,
+    ),
+    check(
+      "orders_fulfilment_status_check",
+      sql`${t.fulfilmentStatus} in ('unfulfilled', 'preparing', 'shipped', 'delivered')`,
     ),
     check("orders_subtotal_cents_check", sql`${t.subtotalCents} >= 0`),
+    check("orders_refunded_cents_check", sql`${t.refundedCents} >= 0`),
   ],
 );
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   user: one(user, { fields: [orders.userId], references: [user.id] }),
   items: many(orderItems),
+  statusEvents: many(orderStatusEvents),
 }));
 
 /** What was bought, as it was at checkout: never re-read from the catalogue. */
@@ -405,3 +456,115 @@ export const stripeEvents = pgTable("stripe_events", {
   stripeCreatedAt: timestamp({ withTimezone: true }).notNull(),
   receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Every status change of an order, payment or fulfilment, in the order it
+ * happened. Written in the same SQL statement as the change itself.
+ */
+export const orderStatusEvents = pgTable(
+  "order_status_events",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    orderId: uuid()
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    kind: text().$type<"payment" | "fulfilment">().notNull(),
+    fromStatus: text().notNull(),
+    toStatus: text().notNull(),
+    source: text().$type<"stripe" | "admin">().notNull(),
+    stripeEventId: text(),
+    actorUserId: text().references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("order_status_events_order_id_idx").on(t.orderId, t.createdAt),
+    check(
+      "order_status_events_kind_check",
+      sql`${t.kind} in ('payment', 'fulfilment')`,
+    ),
+    check(
+      "order_status_events_source_check",
+      sql`${t.source} in ('stripe', 'admin')`,
+    ),
+  ],
+);
+
+export const orderStatusEventsRelations = relations(
+  orderStatusEvents,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderStatusEvents.orderId],
+      references: [orders.id],
+    }),
+    actor: one(user, {
+      fields: [orderStatusEvents.actorUserId],
+      references: [user.id],
+    }),
+  }),
+);
+
+// --- Admin and analytics ----------------------------------------------------
+
+/** Who changed what in the back office. Never holds secrets or card data. */
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    actorUserId: text().references(() => user.id, { onDelete: "set null" }),
+    action: text().notNull(),
+    targetType: text().notNull(),
+    targetId: text().notNull(),
+    details: jsonb().$type<Record<string, unknown>>(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("admin_audit_log_created_at_idx").on(t.createdAt)],
+);
+
+export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
+  actor: one(user, {
+    fields: [adminAuditLog.actorUserId],
+    references: [user.id],
+  }),
+}));
+
+export const productEventTypes = ["view", "click", "add_to_bag"] as const;
+export type ProductEventType = (typeof productEventTypes)[number];
+
+/**
+ * First-party product interest, one row per visitor, product, type and UTC
+ * day: a reload the same day hits the UNIQUE and is dropped. `visitorHash`
+ * is a daily-rotating HMAC; no IP, cookie or user id is stored.
+ */
+export const productEvents = pgTable(
+  "product_events",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    productId: uuid()
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    type: text().$type<ProductEventType>().notNull(),
+    visitorHash: text().notNull(),
+    day: date({ mode: "string" }).notNull(),
+    occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("product_events_dedupe_key").on(
+      t.productId,
+      t.type,
+      t.visitorHash,
+      t.day,
+    ),
+    index("product_events_type_day_idx").on(t.type, t.day),
+    check(
+      "product_events_type_check",
+      sql`${t.type} in ('view', 'click', 'add_to_bag')`,
+    ),
+  ],
+);
+
+export const productEventsRelations = relations(productEvents, ({ one }) => ({
+  product: one(products, {
+    fields: [productEvents.productId],
+    references: [products.id],
+  }),
+}));

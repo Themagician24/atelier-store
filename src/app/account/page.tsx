@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
+import { NameForm } from "./name-form";
 
 export const metadata: Metadata = {
-  title: "Your account — Atelier",
+  title: "Your account",
   robots: { index: false },
 };
 
@@ -15,7 +16,11 @@ const memberSince = new Intl.DateTimeFormat("en-US", {
 
 export default function AccountPage() {
   return (
-    <section aria-labelledby="details-title" className="flex max-w-reading flex-col gap-8">
+    <section
+      id="details"
+      aria-labelledby="details-title"
+      className="flex max-w-reading scroll-mt-[calc(var(--header-height)+2rem)] flex-col gap-8"
+    >
       <h2 id="details-title" className="text-title">
         Account details
       </h2>
@@ -29,7 +34,7 @@ export default function AccountPage() {
 async function AccountDetails() {
   const user = await requireUser("/account");
   const rows = [
-    { label: "Name", value: user.name },
+    { label: "Name", value: <NameForm name={user.name} /> },
     { label: "Email", value: user.email },
     { label: "Sign-in method", value: "Email and password" },
     { label: "Member since", value: memberSince.format(user.createdAt) },
@@ -41,12 +46,14 @@ async function AccountDetails() {
         {rows.map((row) => (
           <div key={row.label} className="flex flex-col gap-1 border-b py-5">
             <dt className="eyebrow text-muted">{row.label}</dt>
-            <dd className="text-lead wrap-anywhere">{row.value}</dd>
+            <dd className={typeof row.value === "string" ? "text-lead wrap-anywhere" : ""}>
+              {row.value}
+            </dd>
           </div>
         ))}
       </dl>
       <p className="text-muted">
-        To change your name or email, contact{" "}
+        To change your email address, contact{" "}
         <Link href="/help/contact" className="link text-ink">
           client services
         </Link>

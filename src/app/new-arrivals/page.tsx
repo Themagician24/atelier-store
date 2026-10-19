@@ -9,8 +9,9 @@ import { getNewestProducts } from "@/lib/products";
 const PAGE_COUNT = 24;
 
 export const metadata: Metadata = {
-  title: "New Arrivals — Atelier",
-  description: "The latest pieces from the ateliers, newest first.",
+  title: "New Arrivals",
+  description: "The latest pieces from the ateliers, newest first. Free shipping across the US.",
+  alternates: { canonical: "/new-arrivals" },
 };
 
 export default async function NewArrivalsPage() {

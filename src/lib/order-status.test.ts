@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { applyTransition, transitionFor } from "./order-status";
+import { applyTransition, refundTransition, transitionFor } from "./order-status";
 
 describe("transitionFor / applyTransition", () => {
   test("a paid completed session pays a pending order and fulfils it", () => {
@@ -71,5 +71,39 @@ describe("transitionFor / applyTransition", () => {
 
   test("no_payment_required has no transition", () => {
     assert.equal(transitionFor("checkout.session.completed", "no_payment_required"), null);
+  });
+});
+
+describe("refundTransition", () => {
+  const charge = { amount: 42000, amountRefunded: 42000 };
+
+  test("a full refund turns a paid order refunded", () => {
+    assert.deepEqual(refundTransition("paid", charge, 0), { to: "refunded", refundedCents: 42000 });
+  });
+
+  test("a partial refund records the amount and keeps it paid", () => {
+    assert.deepEqual(refundTransition("paid", { amount: 42000, amountRefunded: 10000 }, 0), {
+      to: "paid",
+      refundedCents: 10000,
+    });
+  });
+
+  test("refunds add up across events until the whole charge is back", () => {
+    const first = refundTransition("paid", { amount: 42000, amountRefunded: 10000 }, 0)!;
+    const second = refundTransition(first.to, { amount: 42000, amountRefunded: 42000 }, first.refundedCents);
+    assert.deepEqual(second, { to: "refunded", refundedCents: 42000 });
+  });
+
+  test("a replayed or out-of-order event never lowers the refunded total", () => {
+    assert.deepEqual(refundTransition("refunded", { amount: 42000, amountRefunded: 10000 }, 42000), {
+      to: "refunded",
+      refundedCents: 42000,
+    });
+  });
+
+  test("money that was never taken can't be refunded", () => {
+    for (const status of ["pending", "processing", "payment_failed", "expired", "cancelled"] as const) {
+      assert.equal(refundTransition(status, charge, 0), null, status);
+    }
   });
 });

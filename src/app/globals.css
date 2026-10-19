@@ -507,6 +507,27 @@
   animation: stage-caption 600ms var(--ease-standard);
 }
 
+/* Order confirmation: the mark draws itself, then the copy rises in step.
+   Children set --rise-delay to stagger. */
+@keyframes confirm-draw {
+  from {
+    stroke-dashoffset: var(--draw-length);
+  }
+}
+
+.confirm-mark :is(circle, path) {
+  stroke-dasharray: var(--draw-length);
+  animation: confirm-draw 900ms var(--ease-standard) both;
+}
+
+.confirm-mark path {
+  animation-delay: 450ms;
+}
+
+.confirm-rise {
+  animation: stage-caption 700ms var(--ease-standard) var(--rise-delay, 0ms) both;
+}
+
 /* The page stays put behind an open menu or search. */
 html:has(dialog[open]) {
   overflow: hidden;
@@ -519,7 +540,9 @@ html:has(dialog[open]) {
     transition-duration: 0.01ms !important;
   }
 
-  .stage-caption {
+  .stage-caption,
+  .confirm-rise,
+  .confirm-mark :is(circle, path) {
     animation: none;
   }
 }

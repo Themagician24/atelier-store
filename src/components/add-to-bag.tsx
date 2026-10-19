@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { addToBag } from "@/app/bag/actions";
+import { setBagCount } from "@/components/session-provider";
 import type { StockState } from "@/lib/stock";
 
 /*
@@ -22,6 +23,11 @@ export function AddToBag({
   const pathname = usePathname();
   const [state, action, pending] = useActionState(addToBag, null);
   const soldOut = sku !== null && stock === "sold-out";
+
+  // The badge moves the moment the server confirms the add.
+  useEffect(() => {
+    if (state?.itemCount !== undefined) setBagCount(state.itemCount);
+  }, [state]);
 
   return (
     <form action={action} className="flex flex-col gap-3">

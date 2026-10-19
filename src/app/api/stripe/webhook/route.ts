@@ -1,5 +1,6 @@
+import { revalidateTag } from "next/cache";
 import type Stripe from "stripe";
-import { applyCheckoutEvent } from "@/lib/orders";
+import { applyCheckoutEvent, applyRefundEvent } from "@/lib/orders";
 import { stripe, webhookSecret } from "@/lib/stripe";
 
 // The only place an order becomes paid. Stripe sends no cookie, so this route
@@ -20,7 +21,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const outcome = await applyCheckoutEvent(event);
+    const outcome =
+      event.type === "charge.refunded"
+        ? await applyRefundEvent(event)
+        : await applyCheckoutEvent(event);
+    // Stock just moved: the catalogue's cached stock states are out of date.
+    if (outcome === "fulfilled") revalidateTag("products", "max");
     return Response.json({ received: true, outcome });
   } catch (error) {
     // 500 makes Stripe retry; the event is only recorded once applied.

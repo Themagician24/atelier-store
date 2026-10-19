@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 
@@ -19,6 +20,9 @@ export type CurrentUser = {
 
 /** One database read per request, however many components ask. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  // A DB read checked against the clock: real requests only, never a
+  // prerender or prefetch, where Next aborts the query mid-flight.
+  await connection();
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
   const { id, name, email, role, createdAt } = session.user;
@@ -54,5 +58,7 @@ export function safeNext(raw: unknown, fallback = "/account"): string {
   if (typeof raw !== "string") return fallback;
   // One leading slash only: "//host" and "/\host" are protocol-relative.
   if (!/^\/(?![/\\])/.test(raw)) return fallback;
+  // URL parsing strips tabs and newlines, so "/\t/host" would become "//host".
+  if (/[\u0000-\u001f\u007f]/.test(raw)) return fallback;
   return raw;
 }

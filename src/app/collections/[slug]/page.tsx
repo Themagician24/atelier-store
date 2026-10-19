@@ -5,7 +5,16 @@ import { Suspense } from "react";
 import { ProductCard } from "@/components/product-card";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { FilterBar } from "@/components/filter-bar";
+import { applyFilters, facets, parseFilters } from "@/lib/catalogue-filters";
 import { getCategory, getCategorySlugs } from "@/lib/products";
+import {
+  breadcrumbJsonLd,
+  collectionDescription,
+  itemListJsonLd,
+  jsonLd,
+} from "@/lib/seo";
+import { absoluteUrl, pageOpenGraph } from "@/lib/site";
 
 export async function generateStaticParams() {
   const slugs = await getCategorySlugs();
@@ -17,14 +26,26 @@ export async function generateMetadata({
 }: PageProps<"/collections/[slug]">): Promise<Metadata> {
   const category = await getCategory((await params).slug);
   if (!category) return {};
+  const path = `/collections/${category.slug}`;
+  const description = collectionDescription(category.name, category.products.length);
+  const cover = category.products[0]?.images[0];
   return {
-    title: `${category.name} — Atelier`,
-    description: `${category.name} at Atelier, newest pieces first.`,
+    title: category.name,
+    description,
+    // Filtered and sorted views are the same collection: one canonical URL.
+    alternates: { canonical: path },
+    openGraph: pageOpenGraph({
+      path,
+      title: category.name,
+      description,
+      images: cover ? [{ url: cover.url, alt: cover.alt }] : undefined,
+    }),
   };
 }
 
 export default function CollectionPage({
   params,
+  searchParams,
 }: PageProps<"/collections/[slug]">) {
   // Same split as the product page: header and footer are the static shell,
   // everything that reads the slug streams in behind the fallback.
@@ -33,7 +54,7 @@ export default function CollectionPage({
       <SiteHeader />
       <main className="flex-1">
         <Suspense fallback={<CollectionSkeleton />}>
-          <CollectionDetails params={params} />
+          <CollectionDetails params={params} searchParams={searchParams} />
         </Suspense>
       </main>
       <SiteFooter />
@@ -43,16 +64,39 @@ export default function CollectionPage({
 
 async function CollectionDetails({
   params,
+  searchParams,
 }: {
   params: PageProps<"/collections/[slug]">["params"];
+  searchParams: PageProps<"/collections/[slug]">["searchParams"];
 }) {
-  const category = await getCategory((await params).slug);
+  const [category, query] = await Promise.all([
+    getCategory((await params).slug),
+    searchParams,
+  ]);
   if (!category) notFound();
 
-  const { products } = category;
+  const all = category.products;
+  const filters = parseFilters(query);
+  const products = applyFilters(all, filters);
+  const { colours, sizes } = facets(all);
+  const path = `/collections/${category.slug}`;
+  const structured = [
+    breadcrumbJsonLd([
+      { name: "Home", url: absoluteUrl("/") },
+      { name: category.name, url: absoluteUrl(path) },
+    ]),
+    itemListJsonLd(
+      category.name,
+      all.map((p) => absoluteUrl(`/products/${p.slug}`)),
+    ),
+  ];
 
   return (
     <section aria-labelledby="page-title" className="shell py-section">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(structured) }}
+      />
       <div className="section-head">
         <nav aria-label="Breadcrumb">
           <ol className="eyebrow flex gap-2 text-muted">
@@ -70,16 +114,30 @@ async function CollectionDetails({
         </h1>
       </div>
 
-      {products.length > 0 ? (
+      {all.length > 0 && (
+        <div className="mb-8 border-b pb-6">
+          <FilterBar
+            key={JSON.stringify(filters)}
+            action={path}
+            filters={filters}
+            colours={colours}
+            sizes={sizes}
+            resultCount={products.length}
+          />
+        </div>
+      )}
+
+      {all.length > 0 && products.length === 0 ? (
+        <div className="flex flex-col items-center gap-6 py-10 text-center">
+          <p className="max-w-reading text-muted">
+            No pieces match these filters.
+          </p>
+          <Link href={path} className="btn btn-secondary">
+            Clear filters
+          </Link>
+        </div>
+      ) : products.length > 0 ? (
         <>
-          <div className="section-bar">
-            <p className="eyebrow text-muted">
-              {products.length} {products.length === 1 ? "piece" : "pieces"}
-            </p>
-            <Link href="/new-arrivals" className="link-cta">
-              New Arrivals
-            </Link>
-          </div>
           <ul className="product-grid">
             {products.map((product) => (
               <li key={product.slug}>

@@ -1,7 +1,8 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { addLine, removeLine, setLineQuantity } from "@/lib/cart";
+import { recordAddToBag } from "@/lib/analytics";
+import { addLine, bagItemCount, removeLine, setLineQuantity } from "@/lib/cart";
 import { MAX_LINE_QUANTITY } from "@/lib/cart-math";
 import type { CartActionState } from "@/lib/cart-types";
 import { requireUser, safeNext } from "@/lib/session";
@@ -51,8 +52,14 @@ export async function addToBag(
           : `Your bag already holds all ${result.max} available.`,
     };
   }
+  // The header badge takes this count; the analytics write never blocks it.
+  const [itemCount] = await Promise.all([
+    bagItemCount(user.id),
+    recordAddToBag(user.id, sku).catch(() => undefined),
+  ]);
   return {
     ok: true,
+    itemCount,
     message:
       result.quantity === result.max && result.max < MAX_LINE_QUANTITY
         ? `Added. You have the last ${result.quantity === 1 ? "one" : result.quantity} in your bag.`
@@ -60,18 +67,20 @@ export async function addToBag(
   };
 }
 
-export async function updateQuantity(formData: FormData): Promise<void> {
+/** Returns the pieces now in the bag, for the header badge. */
+export async function updateQuantity(formData: FormData): Promise<number> {
   const user = await requireUser("/bag");
   const sku = readSku(formData);
-  if (!sku) return;
-  await setLineQuantity(user.id, sku, readQuantity(formData, 1));
+  if (sku) await setLineQuantity(user.id, sku, readQuantity(formData, 1));
   refresh();
+  return bagItemCount(user.id);
 }
 
-export async function removeFromBag(formData: FormData): Promise<void> {
+/** Returns the pieces now in the bag, for the header badge. */
+export async function removeFromBag(formData: FormData): Promise<number> {
   const user = await requireUser("/bag");
   const sku = readSku(formData);
-  if (!sku) return;
-  await removeLine(user.id, sku);
+  if (sku) await removeLine(user.id, sku);
   refresh();
+  return bagItemCount(user.id);
 }

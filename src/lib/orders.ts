@@ -12,8 +12,13 @@ import {
   type ShippingAddress,
 } from "@/db/schema";
 import { CHECKOUT_CURRENCY, type CheckoutLine } from "@/lib/checkout-lines";
-import { isCheckoutEvent, transitionFor } from "@/lib/order-status";
+import {
+  isCheckoutEvent,
+  REFUNDABLE,
+  transitionFor,
+} from "@/lib/order-status";
 import type { OrderDetail, OrderSummary } from "@/lib/order-types";
+import { stripe } from "@/lib/stripe";
 
 /*
  * The only module that touches `db` for orders. Orders are created `pending`
@@ -157,6 +162,10 @@ async function findOrder(where: SQL | undefined): Promise<OrderDetail | null> {
       createdAt: true,
       paidAt: true,
       shippingAddress: true,
+      refundedCents: true,
+      fulfilmentStatus: true,
+      shippedAt: true,
+      deliveredAt: true,
     },
     with: {
       items: {
@@ -194,7 +203,7 @@ export async function listOrders(userId: string): Promise<OrderSummary[]> {
     .where(
       and(
         eq(orders.userId, userId),
-        inArray(orders.status, ["processing", "paid", "payment_failed"]),
+        inArray(orders.status, ["processing", "paid", "payment_failed", "refunded"]),
         isNotNull(orders.stripeCheckoutSessionId),
       ),
     )
@@ -203,7 +212,8 @@ export async function listOrders(userId: string): Promise<OrderSummary[]> {
 
 // --- Webhook -----------------------------------------------------------------
 
-export type EventOutcome = "applied" | "noop" | "duplicate" | "ignored";
+/** `fulfilled`: the payment was confirmed and stock moved, so the catalogue is stale. */
+export type EventOutcome = "applied" | "fulfilled" | "noop" | "duplicate" | "ignored";
 
 function shippingAddressOf(
   session: Stripe.Checkout.Session,
@@ -263,15 +273,28 @@ export async function applyCheckoutEvent(
   const match = sql`id = ${orderId}::uuid
     and stripe_checkout_session_id = ${session.id}
     and status in (${from})`;
+  // The status before the change, for the history row. Same snapshot as the
+  // update; the update's own guard is what decides whether anything moves.
+  const prev = sql`prev as (
+    select id as prev_id, status as prev_status from orders where ${match}
+  )`;
+  const history = (cte: string) => sql`
+    insert into order_status_events
+      (order_id, kind, from_status, to_status, source, stripe_event_id)
+    select id, 'payment', prev_status, ${transition.to}, 'stripe', ${event.id}
+    from ${sql.raw(cte)}`;
 
   if (!transition.fulfil) {
     const result = await db.execute(sql`
       with ev as (${recordEvent}),
+      ${prev},
       moved as (
         update orders set status = ${transition.to}, updated_at = now()
-        where ${match}
-        returning id
-      )
+        from prev
+        where prev_id = orders.id and ${match}
+        returning orders.id, prev_status
+      ),
+      hist as (${history("moved")})
       select count(*)::int as moved from moved`);
     return Number(result.rows[0]?.moved) > 0 ? "applied" : "noop";
   }
@@ -286,6 +309,7 @@ export async function applyCheckoutEvent(
   // as it was before this statement's own decrement.
   const result = await db.execute(sql`
     with ev as (${recordEvent}),
+    ${prev},
     paid as (
       update orders set
         status = 'paid',
@@ -305,16 +329,19 @@ export async function applyCheckoutEvent(
             and not oi.made_to_order
             and v.stock_quantity < oi.quantity
         )
-      where ${match}
-      returning id, user_id
+      from prev
+      where prev_id = orders.id and ${match}
+      returning orders.id as id, orders.user_id as user_id, prev_status
     ),
+    hist as (${history("paid")}),
     stock as (
+      -- Made-to-order pieces sell any ready stock first, then are made:
+      -- they decrement too, and the floor absorbs the made part.
       update product_variants v
       set stock_quantity = greatest(v.stock_quantity - oi.quantity, 0)
       from order_items oi, paid
       where oi.order_id = paid.id
         and oi.variant_id = v.id
-        and not oi.made_to_order
       returning v.id
     ),
     cleared as (
@@ -329,5 +356,97 @@ export async function applyCheckoutEvent(
       (select count(*) from paid)::int as moved,
       (select count(*) from stock)::int as decremented,
       (select count(*) from cleared)::int as cleared`);
+  return Number(result.rows[0]?.moved) > 0 ? "fulfilled" : "noop";
+}
+
+/**
+ * Applies a verified `charge.refunded`. The order is found by its payment
+ * intent; the rule is refundTransition() in src/lib/order-status.ts, written
+ * here as one statement with the event record and the history row, so a
+ * replay changes nothing (stripe_events PK, and greatest() never lowers the
+ * refunded total).
+ */
+export async function applyRefundEvent(
+  event: Stripe.Event,
+): Promise<EventOutcome> {
+  if (event.type !== "charge.refunded") return "ignored";
+
+  const [seen] = await db
+    .select({ id: stripeEvents.id })
+    .from(stripeEvents)
+    .where(eq(stripeEvents.id, event.id));
+  if (seen) return "duplicate";
+
+  const charge = event.data.object as Stripe.Charge;
+  const paymentIntent =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : (charge.payment_intent?.id ?? null);
+  if (!paymentIntent) return "ignored";
+
+  // The payment intent is written on the order when its payment is applied.
+  // A refund can reach us first (the completed event still being retried
+  // after an outage): recording it now would lose it for good. If Stripe says
+  // the payment is one of ours, fail so Stripe retries once the order is
+  // paid; a charge from anything else on the account is simply ignored.
+  const [order] = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(eq(orders.stripePaymentIntentId, paymentIntent))
+    .limit(1);
+  if (!order) {
+    const intent = await stripe().paymentIntents.retrieve(paymentIntent);
+    if (intent.metadata?.orderId) {
+      throw new Error(`Refund for order ${intent.metadata.orderId} arrived before its payment; retry`);
+    }
+    await db.execute(sql`
+      insert into stripe_events (id, type, stripe_created_at)
+      values (${event.id}, ${event.type}, to_timestamp(${event.created}))
+      on conflict (id) do nothing`);
+    return "ignored";
+  }
+
+  const refundable = sql.join(
+    REFUNDABLE.map((s) => sql`${s}`),
+    sql`, `,
+  );
+  const amountRefunded = Math.max(0, charge.amount_refunded);
+  const full = charge.amount > 0 && amountRefunded >= charge.amount;
+
+  const result = await db.execute(sql`
+    with ev as (
+      insert into stripe_events (id, type, stripe_created_at)
+      values (${event.id}, ${event.type}, to_timestamp(${event.created}))
+      on conflict (id) do nothing
+    ),
+    prev as (
+      select id as prev_id, status as prev_status, refunded_cents as prev_refunded
+      from orders
+      where stripe_payment_intent_id = ${paymentIntent}
+        and status in (${refundable})
+    ),
+    moved as (
+      -- refunded_at is when Stripe made this refund, so period reports date
+      -- the latest refund correctly. amount_refunded is cumulative; if a
+      -- refund later fails Stripe lowers it, which greatest() deliberately
+      -- ignores: that rare case is corrected by hand in Stripe and here.
+      update orders set
+        refunded_cents = greatest(refunded_cents, ${amountRefunded}::int),
+        refunded_at = to_timestamp(${event.created}),
+        status = case when ${full}::boolean then 'refunded' else status end,
+        updated_at = now()
+      from prev
+      where prev_id = orders.id and status in (${refundable})
+        and greatest(refunded_cents, ${amountRefunded}::int) > prev_refunded
+      returning orders.id as id, prev_status, orders.status as to_status
+    ),
+    hist as (
+      insert into order_status_events
+        (order_id, kind, from_status, to_status, source, stripe_event_id)
+      select id, 'payment', prev_status, to_status, 'stripe', ${event.id}
+      from moved
+      where prev_status <> to_status
+    )
+    select count(*)::int as moved from moved`);
   return Number(result.rows[0]?.moved) > 0 ? "applied" : "noop";
 }

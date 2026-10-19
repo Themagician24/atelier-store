@@ -13,6 +13,14 @@ export function stripe(): Stripe {
   if (client) return client;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+  if (!/^(sk|rk)_/.test(key)) {
+    throw new Error("STRIPE_SECRET_KEY must be a secret (sk_) or restricted (rk_) key, not a publishable one");
+  }
+  // One key, nothing else: a pasted pair or a stray character is a 401 at
+  // Stripe that otherwise only surfaces as "Invalid API Key".
+  if (!/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(key) || /(sk|rk)_/.test(key.slice(3))) {
+    throw new Error("STRIPE_SECRET_KEY is malformed: it must hold exactly one key, with no spaces or extra characters");
+  }
   client = new Stripe(key, {
     apiVersion: "2026-08-26.dahlia",
     appInfo: { name: "atelier-store" },

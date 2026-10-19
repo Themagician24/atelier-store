@@ -9,9 +9,17 @@ import { ProductGallery } from "@/components/product-gallery";
 import { ProductStage } from "@/components/product-3d/product-stage";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { TrackView } from "@/components/track-event";
 import { VariantPicker } from "@/components/variant-picker";
 import { getProduct, getProductSlugs, getRelatedProducts } from "@/lib/products";
 import { productModel } from "@/lib/product-models";
+import {
+  breadcrumbJsonLd,
+  jsonLd,
+  metaDescription,
+  productJsonLd,
+} from "@/lib/seo";
+import { absoluteUrl, pageOpenGraph, SITE_NAME } from "@/lib/site";
 
 const RELATED_COUNT = 4;
 
@@ -25,10 +33,32 @@ export async function generateMetadata({
 }: PageProps<"/products/[slug]">): Promise<Metadata> {
   const product = await getProduct((await params).slug);
   if (!product) return {};
+  const path = `/products/${product.slug}`;
+  const description = metaDescription(product.description);
+  const image = product.images[0];
   return {
-    title: `${product.name} — Atelier`,
-    description: product.description,
+    title: product.name,
+    description,
+    alternates: { canonical: path },
+    openGraph: pageOpenGraph({
+      path,
+      title: product.name,
+      description,
+      images: image
+        ? [{ url: socialImage(image.url), width: 1200, alt: image.alt }]
+        : undefined,
+    }),
+    twitter: { card: "summary_large_image", title: product.name, description },
   };
+}
+
+/** The packshot at a social-card width, through Unsplash's own resizer. */
+function socialImage(url: string): string {
+  const u = new URL(url);
+  u.searchParams.set("w", "1200");
+  u.searchParams.set("q", "80");
+  u.searchParams.set("fm", "jpg");
+  return u.toString();
 }
 
 export default function ProductPage({
@@ -59,9 +89,26 @@ async function ProductDetails({
 
   const related = await getRelatedProducts(product, RELATED_COUNT);
   const model = productModel(product.slug);
+  const url = absoluteUrl(`/products/${product.slug}`);
+  const structured = [
+    productJsonLd(product, url, SITE_NAME),
+    breadcrumbJsonLd([
+      { name: "Home", url: absoluteUrl("/") },
+      {
+        name: product.category.name,
+        url: absoluteUrl(`/collections/${product.category.slug}`),
+      },
+      { name: product.name, url },
+    ]),
+  ];
 
   return (
     <ColourSelectionProvider initialColour={product.colours[0]}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(structured) }}
+      />
+      <TrackView slug={product.slug} />
       <div className="md:grid md:grid-cols-[3fr_2fr] xl:grid-cols-[2fr_1fr]">
         {model ? (
           // The 3D stage leads; the photos follow once it has played.

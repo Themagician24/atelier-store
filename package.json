@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
+    "db:seed:extend": "tsx scripts/seed-extend.ts",
     "auth:role": "tsx scripts/set-role.ts",
     "test": "tsx --test \"src/**/*.test.ts\""
   },

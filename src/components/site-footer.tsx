@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
 import { footerNav } from "@/lib/sample-data";
 
 // The one dark band on the site: closes the page the way a lookbook ends.
 export function SiteFooter() {
   return (
     <footer className="bg-ink text-paper">
-      <div className="shell grid gap-10 py-section md:grid-cols-[2fr_repeat(3,1fr)]">
+      <div className="shell grid gap-10 py-section md:grid-cols-[2fr_repeat(2,1fr)]">
         <div className="flex flex-col gap-4">
-          <p className="wordmark">Atelier</p>
+          <p className="wordmark inline-flex items-center gap-3">
+            <BrandMark className="h-7 w-auto" />
+            Atelier
+          </p>
           <p className="max-w-reading text-paper/60">
             Ready-to-wear, bags and shoes, cut and finished in our own
             workshops, in small runs.

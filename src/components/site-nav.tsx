@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FocusEvent } from "react";
 import {
-  AccountIcon,
-  BagIcon,
-  CloseIcon,
-  MenuIcon,
-  SearchIcon,
-} from "@/components/nav-icons";
+  AccountDrawerLinks,
+  AccountMenu,
+  BagLink,
+} from "@/components/account-menu";
+import { BrandMark } from "@/components/brand-mark";
+import { CloseIcon, MenuIcon, SearchIcon } from "@/components/nav-icons";
 import { NavSearch } from "@/components/nav-search";
+import { SessionSync } from "@/components/session-provider";
 import { Price } from "@/components/price";
 import { currency } from "@/lib/format";
 import type { Navigation, NavSection } from "@/lib/nav-types";
@@ -25,11 +26,11 @@ const CLOSE_DELAY = 160;
 const TILE_COUNT = 4;
 
 /*
- * Desktop (lg+): wordmark left, one link per section centred, search /
+ * Desktop (xl+): wordmark left, one link per section centred, search /
  * account / bag right. Hovering or focusing a section opens its panel: the
  * section's pieces by name with prices, the newest as photo tiles. Without JS
  * every link still works, the panels just stay shut.
- * Below lg: menu + search left, wordmark centred, account + bag right; the
+ * Below xl: menu + search left, wordmark centred, account + bag right; the
  * menu is a full-screen drawer with one accordion per section.
  */
 export function SiteNav({ navigation }: { navigation: Navigation }) {
@@ -86,7 +87,7 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
       <div
         aria-hidden="true"
         onMouseEnter={closeNow}
-        className={`fixed inset-x-0 top-(--header-height) bottom-0 bg-ink/20 transition-opacity duration-300 ease-standard max-lg:hidden ${
+        className={`fixed inset-x-0 top-(--header-height) bottom-0 bg-ink/20 transition-opacity duration-300 ease-standard max-xl:hidden ${
           openSlug ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
@@ -98,7 +99,7 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
             onClick={() => setDrawerOpen(true)}
             aria-label="Menu"
             aria-haspopup="dialog"
-            className="btn btn-icon -ml-2.5 lg:hidden"
+            className="btn btn-icon -ml-2.5 xl:hidden"
           >
             <MenuIcon />
           </button>
@@ -107,21 +108,23 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
             onClick={openSearch}
             aria-label="Search"
             aria-haspopup="dialog"
-            className="btn btn-icon lg:hidden"
+            className="btn btn-icon xl:hidden"
           >
             <SearchIcon />
           </button>
-          <Link href="/" className="wordmark hidden lg:inline">
+          <Link href="/" className="wordmark hidden items-center gap-2.5 xl:inline-flex">
+            <BrandMark />
             Atelier
           </Link>
         </div>
 
-        <Link href="/" className="wordmark lg:hidden">
+        <Link href="/" className="wordmark inline-flex items-center gap-2 xl:hidden">
+          <BrandMark className="h-[18px] w-auto md:h-5" />
           Atelier
         </Link>
 
-        <nav aria-label="Main" className="hidden lg:block">
-          <ul className="flex items-center gap-6 xl:gap-10">
+        <nav aria-label="Main" className="hidden xl:block">
+          <ul className="flex items-center gap-6 2xl:gap-9">
             {navigation.sections.map((section) => (
               <li
                 key={section.slug}
@@ -159,8 +162,10 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
           </ul>
         </nav>
 
-        {/* Icons only: the labels live in aria-label and the title tooltip. */}
+        {/* Who is signed in and the bag count arrive after hydration from
+            /api/me: the header itself stays in the static shell. */}
         <div className="flex items-center justify-end">
+          <SessionSync />
           <button
             type="button"
             onClick={openSearch}
@@ -168,26 +173,12 @@ export function SiteNav({ navigation }: { navigation: Navigation }) {
             aria-haspopup="dialog"
             aria-keyshortcuts="/ Control+K Meta+K"
             title="Search ( / )"
-            className="btn btn-icon hidden lg:inline-flex"
+            className="btn btn-icon hidden xl:inline-flex"
           >
             <SearchIcon />
           </button>
-          <Link
-            href="/account"
-            aria-label="Account"
-            title="Account"
-            className="btn btn-icon"
-          >
-            <AccountIcon />
-          </Link>
-          <Link
-            href="/bag"
-            aria-label="Bag"
-            title="Bag"
-            className="btn btn-icon -mr-2.5"
-          >
-            <BagIcon />
-          </Link>
+          <AccountMenu />
+          <BagLink className="-mr-2.5" />
         </div>
       </div>
 
@@ -329,7 +320,7 @@ function MobileDrawer({
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("a")) onClose();
       }}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-paper p-0 text-ink backdrop:bg-ink/30 sm:max-w-md motion-safe:animate-[nav-slide_280ms_var(--ease-standard)] lg:hidden"
+      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-paper p-0 text-ink backdrop:bg-ink/30 sm:max-w-md motion-safe:animate-[nav-slide_280ms_var(--ease-standard)] xl:hidden"
     >
       <div className="flex h-full flex-col">
         <div className="flex h-(--header-height) shrink-0 items-center justify-between border-b px-gutter">
@@ -341,7 +332,8 @@ function MobileDrawer({
           >
             <CloseIcon />
           </button>
-          <Link href="/" className="wordmark">
+          <Link href="/" className="wordmark inline-flex items-center gap-2">
+            <BrandMark className="h-[18px] w-auto" />
             Atelier
           </Link>
           <button
@@ -414,12 +406,7 @@ function MobileDrawer({
         </nav>
 
         <div className="grid shrink-0 grid-cols-2 gap-2 border-t px-gutter py-4">
-          <Link href="/account" className="btn btn-primary">
-            Account
-          </Link>
-          <Link href="/bag" className="btn btn-secondary">
-            Bag
-          </Link>
+          <AccountDrawerLinks />
           <Link
             href="/help/contact"
             className="eyebrow link-quiet col-span-2 mt-2 text-center text-muted"
