@@ -13,6 +13,7 @@ import {
   extendedCreatedAt,
   extendedProducts,
 } from "./catalogue-extended";
+import { colourwayImage, colourways } from "./colourways";
 
 /*
  * Idempotent: wipes the catalogue and re-inserts it in one db.batch(), which
@@ -71,86 +72,6 @@ const categoryRows: SeedCategory[] = [
   { slug: "accessories", name: "Accessories", ...accessoriesCover },
   ...extendedCategories,
 ];
-
-/*
- * Extra colourways, rendered from the packshot by rotating its hue on
- * Unsplash's imgix CDN. Only flat packshots of a saturated piece qualify:
- * on a model (or a hand) the skin turns too, and black, white or grey don't
- * move. Each becomes a variant (stocked like the first colour) and a photo.
- * `hue` is the rotation in degrees; names were checked against the renders.
- */
-const colourways: Record<string, { name: string; hue: number }[]> = {
-  "chevron-shoulder-bag": [
-    { name: "Powder blue", hue: -140 },
-    { name: "Sage", hue: 130 },
-    { name: "Lilac", hue: -75 },
-  ],
-  "leather-lace-up-boots": [
-    { name: "Aubergine", hue: -30 },
-    { name: "Olive", hue: 50 },
-    { name: "Navy", hue: -165 },
-  ],
-  "top-handle-bag": [
-    { name: "Raspberry", hue: 170 },
-    { name: "Olive", hue: -135 },
-    { name: "Cobalt", hue: 40 },
-  ],
-  "denim-trucker-jacket": [
-    { name: "Forest", hue: -75 },
-    { name: "Burgundy", hue: 120 },
-    { name: "Plum", hue: 65 },
-  ],
-  "floral-satin-pumps": [
-    { name: "Pink floral", hue: 115 },
-    { name: "Green floral", hue: -85 },
-    { name: "Peach floral", hue: -165 },
-  ],
-  "raw-denim-jeans": [
-    { name: "Bottle green", hue: -75 },
-    { name: "Oxblood", hue: 125 },
-    { name: "Aubergine", hue: 60 },
-  ],
-  "woven-wicker-handbag": [
-    { name: "Fuchsia", hue: -65 },
-    { name: "Jade", hue: 155 },
-    { name: "Chartreuse", hue: 65 },
-  ],
-  "leather-backpack": [
-    { name: "Plum", hue: -33 },
-    { name: "Olive", hue: 42 },
-    { name: "Steel blue", hue: -168 },
-  ],
-  "structured-top-handle-bag": [
-    { name: "Cobalt", hue: -145 },
-    { name: "Emerald", hue: 140 },
-    { name: "Marigold", hue: 35 },
-  ],
-  "canvas-daypack": [
-    { name: "Forest", hue: -75 },
-    { name: "Burgundy", hue: 120 },
-    { name: "Aubergine", hue: 65 },
-  ],
-  "leather-belt": [
-    { name: "Raspberry", hue: -35 },
-    { name: "Mustard", hue: 45 },
-    { name: "Denim blue", hue: -170 },
-  ],
-  "bifold-leather-wallet": [
-    { name: "Raspberry", hue: -30 },
-    { name: "Bottle green", hue: 120 },
-    { name: "Navy", hue: -165 },
-  ],
-  "leather-satchel": [
-    { name: "Rose", hue: -60 },
-    { name: "Jade", hue: 135 },
-    { name: "Powder blue", hue: 180 },
-  ],
-  "high-rise-denim-shorts": [
-    { name: "Blush", hue: 140 },
-    { name: "Mint", hue: -60 },
-    { name: "Lilac", hue: 65 },
-  ],
-};
 
 // Newest first; createdAt is backdated from a fixed base so order is stable.
 const BASE_DATE = Date.UTC(2026, 9, 1);
@@ -1728,11 +1649,7 @@ async function main() {
       ];
       const images = [
         ...ownImages,
-        ...extra.map(({ name, hue }) => ({
-          url: `${ownImages[0].url}?hue=${hue}`,
-          alt: `${row.name} in ${name.toLowerCase()}`,
-          colour: name,
-        })),
+        ...extra.map((c) => colourwayImage(row.name, ownImages[0].url, c)),
       ];
       const variants = colours.flatMap((colour) => {
         if (colour.stock.length !== sizes.length) {
